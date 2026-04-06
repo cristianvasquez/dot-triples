@@ -1,10 +1,11 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import rdf from 'rdf-ext'
 import { Readable } from 'node:stream'
 import { triplify, internals, createTriplifyQuadTransform } from '../src/triplify.js'
-import { mapQuad, createMappingQuadTransform } from '../src/mapping.js'
+import { mapQuad, createCurieExpansionQuadTransform } from '../src/curie-expansion.js'
 import { typeQuad, createTypedLiteralsQuadTransform } from '../src/typed-literals.js'
 
 async function serializeQuadStream(stream) {
@@ -21,7 +22,7 @@ tags: [person, staff]
 role :: Product Manager
 `)
 
-  assert.match(nt, /^<https:\/\/example.com\/people\/alice> <http:\/\/www\.w3\.org\/2000\/01\/rdf-schema#label> "Alice" \./m)
+  assert.match(nt, /^<https:\/\/example.com\/people\/alice> <rdfs:label> "Alice" \./m)
   assert.match(nt, /<https:\/\/example.com\/people\/alice> <urn:property:tags> "person" \./)
   assert.match(nt, /<https:\/\/example.com\/people\/alice> <urn:property:tags> "staff" \./)
   assert.match(nt, /<https:\/\/example.com\/people\/alice> <urn:property:role> "Product Manager" \./)
@@ -47,7 +48,7 @@ test('bullet list markers are ignored before parsing inline fields', () => {
 + role :: Engineer
 `)
 
-  assert.match(nt, /<urn:name:stdin> <http:\/\/www\.w3\.org\/1999\/02\/22-rdf-syntax-ns#type> <urn:name:Researcher> \./)
+  assert.match(nt, /<urn:name:stdin> <rdf:type> <urn:name:Researcher> \./)
   assert.match(nt, /<urn:name:stdin> <urn:property:knows> <urn:name:Alice> \./)
   assert.match(nt, /<urn:name:stdin> <urn:property:role> "Engineer" \./)
   assert.doesNotMatch(nt, /urn:property:-%20is%20a/)
@@ -68,9 +69,9 @@ role :: Developer
 `)
 
   assert.match(nt, /<urn:name:stdin> <urn:property:owner> "Cristian" \./)
-  assert.match(nt, /<urn:name:stdin#Alice> <http:\/\/www\.w3\.org\/2000\/01\/rdf-schema#label> "Alice" \./)
+  assert.match(nt, /<urn:name:stdin#Alice> <rdfs:label> "Alice" \./)
   assert.match(nt, /<urn:name:stdin#Alice> <urn:property:role> "Product Manager" \./)
-  assert.match(nt, /<urn:name:stdin#Skills> <http:\/\/www\.w3\.org\/2000\/01\/rdf-schema#label> "Skills" \./)
+  assert.match(nt, /<urn:name:stdin#Skills> <rdfs:label> "Skills" \./)
   assert.match(nt, /<urn:name:stdin#Skills> <urn:property:expertise> "Research" \./)
   assert.match(nt, /<urn:name:stdin#Bob> <urn:property:role> "Developer" \./)
 })
@@ -88,7 +89,7 @@ test('heading labels stay plain literals even when the heading looks like a reso
   const nt = triplify(`## [[Next steps]]
 `)
 
-  assert.match(nt, /<urn:name:stdin#%5B%5BNext%20steps%5D%5D> <http:\/\/www\.w3\.org\/2000\/01\/rdf-schema#label> "\[\[Next steps\]\]" \./)
+  assert.match(nt, /<urn:name:stdin#%5B%5BNext%20steps%5D%5D> <rdfs:label> "\[\[Next steps\]\]" \./)
   assert.doesNotMatch(nt, /<urn:name:Next%20steps>/)
 })
 
@@ -100,7 +101,7 @@ type :: schema:Person
 
   assert.match(nt, /<urn:property:born> "2024-03-15" \./)
   assert.match(nt, /<urn:property:knows> <urn:name:Bob%20Smith> \./)
-  assert.match(nt, /<http:\/\/www\.w3\.org\/1999\/02\/22-rdf-syntax-ns#type> <schema:Person> \./)
+  assert.match(nt, /<rdf:type> <schema:Person> \./)
 })
 
 test('mapping expands curies in any RDF term position', () => {
@@ -114,6 +115,16 @@ test('mapping expands curies in any RDF term position', () => {
     mapped.toString(),
     '<https://schema.org/Alice> <https://schema.org/knows> <https://schema.org/Person> .'
   )
+})
+
+test('predicate aliases are read from mappings.json', () => {
+  const mappings = JSON.parse(
+    readFileSync(new URL('../src/mappings.json', import.meta.url), 'utf8')
+  )
+
+  assert.equal(mappings['is a'], 'rdf:type')
+  assert.equal(mappings.a, 'rdf:type')
+  assert.equal(mappings.type, 'rdf:type')
 })
 
 test('mapping rewrites parsed quad terms instead of raw text fragments', () => {
@@ -173,7 +184,7 @@ test('mapping upgrades triplify output before typed-literals', async () => {
     Readable
       .from(['type :: schema:Person\nborn :: 2024-03-15\n'])
       .pipe(createTriplifyQuadTransform())
-      .pipe(createMappingQuadTransform())
+      .pipe(createCurieExpansionQuadTransform())
       .pipe(createTypedLiteralsQuadTransform())
   )
 
@@ -204,7 +215,7 @@ test('triplify transform handles chunked input incrementally', async () => {
 
   const output = quads.map(quad => quad.toString()).join('\n')
 
-  assert.match(output, /^<urn:name:alice> <http:\/\/www\.w3\.org\/2000\/01\/rdf-schema#label> "Alice" \./m)
+  assert.match(output, /^<urn:name:alice> <rdfs:label> "Alice" \./m)
   assert.match(output, /<urn:name:alice#Team> <urn:property:role> "Lead" \./)
 })
 
@@ -224,7 +235,7 @@ test('typed-literals quad transform types literals incrementally', async () => {
   assert.equal(quads[1].object.datatype.value, 'http://www.w3.org/2001/XMLSchema#string')
 })
 
-test('mapping quad transform maps quads incrementally', async () => {
+test('curie expansion quad transform maps quads incrementally', async () => {
   const input = rdf.quad(
     rdf.namedNode('schema:Alice'),
     rdf.namedNode('schema:knows'),
@@ -235,7 +246,7 @@ test('mapping quad transform maps quads incrementally', async () => {
 
   for await (const quad of Readable
     .from([input])
-    .pipe(createMappingQuadTransform())) {
+    .pipe(createCurieExpansionQuadTransform())) {
     quads.push(quad)
   }
 

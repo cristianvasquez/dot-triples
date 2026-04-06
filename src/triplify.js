@@ -1,74 +1,8 @@
 import { Transform } from 'node:stream'
 import { StringDecoder } from 'node:string_decoder'
-import { basename } from 'node:path'
 import rdf from 'rdf-ext'
-import { PREFIXES } from './prefixes.js'
-
-const NAME_BASE = 'urn:name:'
-const PROPERTY_BASE = 'urn:property:'
-const CURIE = /^[a-zA-Z][\w-]*:[^\s]+$/
-const ABSOLUTE_IRI = /^[a-zA-Z][a-zA-Z\d+.-]*:[^\s]*$/
-const RDF = rdf.namespace(PREFIXES.rdf)
-const RDFS = rdf.namespace(PREFIXES.rdfs)
-
-function splitFrontmatter(content) {
-  const input = String(content ?? '')
-  const match = input.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/)
-
-  if (!match) {
-    return { frontmatter: {}, body: input }
-  }
-
-  return {
-    frontmatter: parseSimpleYaml(match[1]),
-    body: input.slice(match[0].length)
-  }
-}
-
-function parseSimpleYaml(yamlText) {
-  const lines = yamlText.replace(/\r/g, '').split('\n')
-  const result = {}
-
-  for (let index = 0; index < lines.length; index += 1) {
-    const rawLine = lines[index]
-    if (!rawLine.trim() || rawLine.trimStart().startsWith('#')) continue
-
-    const keyMatch = rawLine.match(/^([A-Za-z0-9_.:-]+):(?:\s+(.*))?$/)
-    if (!keyMatch) continue
-
-    const [, key, rest = ''] = keyMatch
-
-    if (!rest.trim()) {
-      const list = []
-      let cursor = index + 1
-
-      while (cursor < lines.length) {
-        const itemMatch = lines[cursor].match(/^\s*-\s+(.*)$/)
-        if (!itemMatch) break
-        list.push(parseScalar(itemMatch[1]))
-        cursor += 1
-      }
-
-      result[key] = list
-      index = cursor - 1
-      continue
-    }
-
-    result[key] = parseScalar(rest)
-  }
-
-  return result
-}
-
-function stripQuotes(value) {
-  if (
-    (value.startsWith('"') && value.endsWith('"')) ||
-    (value.startsWith('\'') && value.endsWith('\''))
-  ) {
-    return value.slice(1, -1)
-  }
-  return value
-}
+import { parseSimpleYaml, parseScalar } from './frontmatter.js'
+import { objectTerm, plainLiteralTerm, predicateIri, subjectIri } from './terms.js'
 
 function splitList(value) {
   const parts = []
@@ -93,33 +27,6 @@ function splitList(value) {
 
   if (current.trim()) parts.push(current.trim())
   return parts
-}
-
-function parseScalar(value) {
-  const trimmed = String(value).trim()
-
-  if (!trimmed) return ''
-
-  if (trimmed.startsWith('`') && trimmed.endsWith('`')) {
-    return trimmed.slice(1, -1)
-  }
-
-  if (trimmed.startsWith('[[') && trimmed.endsWith(']]')) {
-    return trimmed
-  }
-
-  if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
-    const inner = trimmed.slice(1, -1).trim()
-    if (!inner) return []
-    return splitList(inner).map(item => parseScalar(item))
-  }
-
-  if (trimmed === 'true') return true
-  if (trimmed === 'false') return false
-  if (trimmed === 'null') return null
-  if (/^-?\d+(?:\.\d+)?$/.test(trimmed)) return Number(trimmed)
-
-  return stripQuotes(trimmed)
 }
 
 function sectionIri(subject, headings) {
@@ -147,70 +54,6 @@ function parseAtomicValue(value) {
     return trimmed.slice(1, -1)
   }
   return trimmed
-}
-
-function isKnownCurie(value) {
-  if (!CURIE.test(value)) return false
-  const prefix = value.slice(0, value.indexOf(':'))
-  return Boolean(PREFIXES[prefix])
-}
-
-function namedNodeFromValue(value, fallbackBase) {
-  const stringValue = String(value).trim()
-
-  if (!stringValue) {
-    throw new Error('Cannot build IRI from empty value')
-  }
-
-  if (stringValue.startsWith('[[') && stringValue.endsWith(']]')) {
-    return rdf.namedNode(`${NAME_BASE}${encodeURI(stringValue.slice(2, -2).trim())}`)
-  }
-
-  if (isKnownCurie(stringValue)) return rdf.namedNode(stringValue)
-
-  if (ABSOLUTE_IRI.test(stringValue)) return rdf.namedNode(stringValue)
-
-  return rdf.namedNode(`${fallbackBase}${encodeURI(stringValue)}`)
-}
-
-function objectTerm(value) {
-  if (Array.isArray(value)) {
-    return value.map(item => objectTerm(item))
-  }
-
-  if (typeof value === 'string') {
-    if (value.startsWith('[[') && value.endsWith(']]')) {
-      return namedNodeFromValue(value, NAME_BASE)
-    }
-
-    if (isKnownCurie(value) || ABSOLUTE_IRI.test(value)) {
-      return namedNodeFromValue(value, NAME_BASE)
-    }
-  }
-
-  return rdf.literal(String(value))
-}
-
-function plainLiteralTerm(value) {
-  return rdf.literal(String(value))
-}
-
-function subjectIri(frontmatter, sourceId = 'stdin') {
-  if (frontmatter.uri) return namedNodeFromValue(frontmatter.uri, NAME_BASE)
-  const localName = basename(sourceId, '.md')
-  return rdf.namedNode(`${NAME_BASE}${encodeURI(localName)}`)
-}
-
-function predicateIri(key) {
-  if (key === 'type' || key === 'a' || key === 'is a') {
-    return RDF('type')
-  }
-
-  if (key === 'label' || key === 'title') {
-    return RDFS('label')
-  }
-
-  return namedNodeFromValue(key, PROPERTY_BASE)
 }
 
 function emitQuads(onQuad, subject, predicate, value, options = {}) {

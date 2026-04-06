@@ -1,0 +1,7 @@
+{
+  "is a": "rdf:type",
+  "a": "rdf:type",
+  "type": "rdf:type",
+  "label": "rdfs:label",
+  "title": "rdfs:label"
+}

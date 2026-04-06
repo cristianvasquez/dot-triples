@@ -4,7 +4,7 @@ import { Readable } from 'node:stream'
 import rdf from 'rdf-ext'
 import { triplify as bigTriplify } from '/home/cvasquez/github.com/cristianvasquez/vault-triplifier/index.js'
 import { createTriplifyQuadTransform } from '../src/triplify.js'
-import { createMappingQuadTransform } from '../src/mapping.js'
+import { createCurieExpansionQuadTransform } from '../src/curie-expansion.js'
 import { createTypedLiteralsQuadTransform } from '../src/typed-literals.js'
 
 const RDF_TYPE = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type'
@@ -102,7 +102,7 @@ async function runComparison(filePath, options = {}) {
   let smallStream = Readable
     .from([content])
     .pipe(createTriplifyQuadTransform({ sourceId: basename(absolutePath) }))
-    .pipe(createMappingQuadTransform())
+    .pipe(createCurieExpansionQuadTransform())
 
   if (options.typed) {
     smallStream = smallStream.pipe(createTypedLiteralsQuadTransform())

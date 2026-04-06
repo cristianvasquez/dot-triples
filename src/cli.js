@@ -4,14 +4,14 @@ import { basename } from 'node:path'
 import { stdin, stdout, stderr, argv } from 'node:process'
 import rdf from 'rdf-ext'
 import { createTriplifyQuadTransform } from './triplify.js'
-import { createMappingQuadTransform } from './mapping.js'
+import { createCurieExpansionQuadTransform } from './curie-expansion.js'
 import { createTypedLiteralsQuadTransform } from './typed-literals.js'
 
 try {
   const sourceId = argv[2] ? basename(argv[2]) : 'stdin'
   const quadStream = stdin
     .pipe(createTriplifyQuadTransform({ sourceId }))
-    .pipe(createMappingQuadTransform())
+    .pipe(createCurieExpansionQuadTransform())
     .pipe(createTypedLiteralsQuadTransform())
 
   await pipeline(rdf.formats.serializers.import('application/n-triples', quadStream), stdout)

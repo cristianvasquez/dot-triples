@@ -3,7 +3,7 @@ import { join, extname } from 'node:path'
 import { homedir } from 'node:os'
 import { performance } from 'node:perf_hooks'
 import { triplify, internals as triplifyInternals } from '../src/triplify.js'
-import { mapQuad } from '../src/mapping.js'
+import { mapQuad } from '../src/curie-expansion.js'
 import { typeQuad } from '../src/typed-literals.js'
 
 const EXCLUDED_DIRS = new Set(['.obsidian', 'node_modules'])

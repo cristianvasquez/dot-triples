@@ -104,7 +104,7 @@ Recent measurement on the local workspace:
 - Document-level triples from YAML frontmatter.
 - Section-level triples from `##` and `###` headings.
 - Obsidian-style `predicate :: value` fields.
-- `is a`, `a`, and `type` mapping to `rdf:type`.
+- Predicate aliases are read from `src/mappings.json`, including `is a`, `a`, and `type` mapping to `rdf:type`.
 - Reversible `urn:name:` and `urn:property:` URI generation.
 - Separate in-process CURIE expansion with `mapping`.
 - Separate in-process literal typing with `typed-literals`.

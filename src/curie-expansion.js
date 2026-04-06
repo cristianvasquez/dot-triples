@@ -25,7 +25,7 @@ export function mapQuad(quad) {
   )
 }
 
-export function createMappingQuadTransform() {
+export function createCurieExpansionQuadTransform() {
   return new Transform({
     objectMode: true,
     transform(quad, encoding, callback) {
