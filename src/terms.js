@@ -1,7 +1,6 @@
 import { basename } from 'node:path'
 import { readFileSync } from 'node:fs'
 import rdf from 'rdf-ext'
-import { PREFIXES } from './prefixes.js'
 
 const NAME_BASE = 'urn:name:'
 const PROPERTY_BASE = 'urn:property:'
@@ -10,12 +9,6 @@ const ABSOLUTE_IRI = /^[a-zA-Z][a-zA-Z\d+.-]*:[^\s]*$/
 const MAPPINGS = Object.freeze(
   JSON.parse(readFileSync(new URL('./mappings.json', import.meta.url), 'utf8'))
 )
-
-function isKnownCurie(value) {
-  if (!CURIE.test(value)) return false
-  const prefix = value.slice(0, value.indexOf(':'))
-  return Boolean(PREFIXES[prefix])
-}
 
 export function namedNodeFromValue(value, fallbackBase) {
   const stringValue = String(value).trim()
@@ -28,7 +21,7 @@ export function namedNodeFromValue(value, fallbackBase) {
     return rdf.namedNode(`${NAME_BASE}${encodeURI(stringValue.slice(2, -2).trim())}`)
   }
 
-  if (isKnownCurie(stringValue)) return rdf.namedNode(stringValue)
+  if (CURIE.test(stringValue)) return rdf.namedNode(stringValue)
 
   if (ABSOLUTE_IRI.test(stringValue)) return rdf.namedNode(stringValue)
 
@@ -45,7 +38,7 @@ export function objectTerm(value) {
       return namedNodeFromValue(value, NAME_BASE)
     }
 
-    if (isKnownCurie(value) || ABSOLUTE_IRI.test(value)) {
+    if (CURIE.test(value) || ABSOLUTE_IRI.test(value)) {
       return namedNodeFromValue(value, NAME_BASE)
     }
   }

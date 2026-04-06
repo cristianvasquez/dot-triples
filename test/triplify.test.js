@@ -104,6 +104,13 @@ type :: schema:Person
   assert.match(nt, /<rdf:type> <schema:Person> \./)
 })
 
+test('triplify preserves unknown curie-shaped values as named nodes', () => {
+  const nt = triplify('related :: ex:Thing\n')
+
+  assert.match(nt, /<urn:property:related> <ex:Thing> \./)
+  assert.doesNotMatch(nt, /<urn:name:ex:Thing>/)
+})
+
 test('mapping expands curies in any RDF term position', () => {
   const mapped = mapQuad(rdf.quad(
     rdf.namedNode('schema:Alice'),
