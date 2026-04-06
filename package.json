@@ -8,6 +8,7 @@
     "typed-literals": "./src/typed-literals-cli.js"
   },
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "compare": "node scripts/compare-with-vault-triplifier.mjs"
   }
 }

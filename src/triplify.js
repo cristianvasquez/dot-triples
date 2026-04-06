@@ -14,15 +14,6 @@ const PROPERTY_BASE = 'urn:property:'
 const CURIE = /^[a-zA-Z][\w-]*:[^\s]+$/
 const ABSOLUTE_IRI = /^[a-zA-Z][a-zA-Z\d+.-]*:/
 
-function slugify(value) {
-  return String(value)
-    .trim()
-    .toLowerCase()
-    .replace(/['"]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-}
-
 function splitFrontmatter(content) {
   const input = String(content ?? '')
   const match = input.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/)
@@ -140,7 +131,7 @@ function removeCodeFences(content) {
 
 function sectionIri(subject, headings) {
   const base = subject.slice(1, -1)
-  const suffix = headings.map(heading => encodeURIComponent(heading)).join('#')
+  const suffix = headings.map(heading => encodeURI(heading)).join('#')
   return `<${base}#${suffix}>`
 }
 
@@ -170,12 +161,15 @@ function parseBodyEntries(body) {
         type: 'heading',
         depth,
         title,
-        subjectPath: currentH3 ? [currentH2, currentH3].filter(Boolean) : [currentH2].filter(Boolean)
+        subjectPath: depth === 3
+          ? [currentH3].filter(Boolean)
+          : [currentH2].filter(Boolean)
       })
       continue
     }
 
-    const match = line.match(/^\s*([^:#][^:]*?)\s*::\s*(.+?)\s*$/)
+    const normalizedLine = line.replace(/^\s*[-*+]\s+/, '')
+    const match = normalizedLine.match(/^\s*([^:#][^:]*?)\s*::\s*(.+?)\s*$/)
     if (!match) continue
 
     const [, key, rawValue] = match
@@ -183,7 +177,7 @@ function parseBodyEntries(body) {
       type: 'field',
       key: key.trim(),
       value: parseInlineValue(rawValue),
-      subjectPath: currentH3 ? [currentH2, currentH3].filter(Boolean) : [currentH2].filter(Boolean)
+      subjectPath: currentH3 ? [currentH3].filter(Boolean) : [currentH2].filter(Boolean)
     })
   }
 
@@ -231,14 +225,14 @@ function iri(value, fallbackBase) {
   }
 
   if (stringValue.startsWith('[[') && stringValue.endsWith(']]')) {
-    return `<${NAME_BASE}${encodeURIComponent(stringValue.slice(2, -2).trim())}>`
+    return `<${NAME_BASE}${encodeURI(stringValue.slice(2, -2).trim())}>`
   }
 
   const expanded = CURIE.test(stringValue) ? expandCurie(stringValue) : null
   if (expanded) return `<${expanded}>`
   if (ABSOLUTE_IRI.test(stringValue)) return `<${stringValue}>`
 
-  return `<${fallbackBase}${encodeURIComponent(slugify(stringValue) || stringValue)}>`
+  return `<${fallbackBase}${encodeURI(stringValue)}>`
 }
 
 function literal(value) {
@@ -267,10 +261,14 @@ function objectTerm(value) {
   return literal(value)
 }
 
+function plainLiteral(value) {
+  return `"${escapeLiteral(String(value))}"`
+}
+
 function subjectIri(frontmatter, sourceId = 'stdin') {
   if (frontmatter.uri) return iri(frontmatter.uri, NAME_BASE)
   const localName = basename(sourceId, '.md')
-  return `<${NAME_BASE}${encodeURIComponent(localName)}>`
+  return `<${NAME_BASE}${encodeURI(localName)}>`
 }
 
 function predicateIri(key) {
@@ -285,13 +283,16 @@ function predicateIri(key) {
   return iri(key, PROPERTY_BASE)
 }
 
-function pushTriple(lines, subject, predicate, value) {
+function pushTriple(lines, subject, predicate, value, options = {}) {
+  const { plainObject = false } = options
+
   if (Array.isArray(value)) {
-    for (const item of value) pushTriple(lines, subject, predicate, item)
+    for (const item of value) pushTriple(lines, subject, predicate, item, options)
     return
   }
 
-  lines.push(`${subject} ${predicate} ${objectTerm(value)} .`)
+  const object = plainObject ? plainLiteral(value) : objectTerm(value)
+  lines.push(`${subject} ${predicate} ${object} .`)
 }
 
 export function triplify(content, options = {}) {
@@ -303,7 +304,9 @@ export function triplify(content, options = {}) {
 
   for (const [key, value] of Object.entries(frontmatter)) {
     if (key === 'uri') continue
-    pushTriple(lines, subject, predicateIri(key), value)
+    pushTriple(lines, subject, predicateIri(key), value, {
+      plainObject: key === 'label' || key === 'title'
+    })
   }
 
   for (const entry of parseBodyEntries(body)) {
@@ -312,7 +315,9 @@ export function triplify(content, options = {}) {
 
       const sectionSubject = sectionIri(subject, entry.subjectPath)
       if (!labeledSubjects.has(sectionSubject)) {
-        pushTriple(lines, sectionSubject, predicateIri('label'), entry.title)
+        pushTriple(lines, sectionSubject, predicateIri('label'), entry.title, {
+          plainObject: true
+        })
         labeledSubjects.add(sectionSubject)
       }
       continue
@@ -326,7 +331,9 @@ export function triplify(content, options = {}) {
       continue
     }
 
-    pushTriple(lines, activeSubject, predicateIri(entry.key), entry.value)
+    pushTriple(lines, activeSubject, predicateIri(entry.key), entry.value, {
+      plainObject: entry.key === 'label' || entry.key === 'title'
+    })
   }
 
   return lines.join('\n')

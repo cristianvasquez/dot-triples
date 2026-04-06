@@ -33,7 +33,19 @@ name :: Alice
   assert.doesNotMatch(nt, /ignored/)
 })
 
-test('default heading partitioning uses ## and ### as entity boundaries', () => {
+test('bullet list markers are ignored before parsing inline fields', () => {
+  const nt = triplify(`- is a :: [[Researcher]]
+* knows :: [[Alice]]
++ role :: Engineer
+`)
+
+  assert.match(nt, /<urn:name:stdin> <http:\/\/www\.w3\.org\/1999\/02\/22-rdf-syntax-ns#type> <urn:name:Researcher> \./)
+  assert.match(nt, /<urn:name:stdin> <urn:property:knows> <urn:name:Alice> \./)
+  assert.match(nt, /<urn:name:stdin> <urn:property:role> "Engineer" \./)
+  assert.doesNotMatch(nt, /urn:property:-%20is%20a/)
+})
+
+test('default heading partitioning uses big-tool heading subjects', () => {
   const nt = triplify(`# Team
 owner :: Cristian
 
@@ -50,8 +62,8 @@ role :: Developer
   assert.match(nt, /<urn:name:stdin> <urn:property:owner> "Cristian" \./)
   assert.match(nt, /<urn:name:stdin#Alice> <http:\/\/www\.w3\.org\/2000\/01\/rdf-schema#label> "Alice" \./)
   assert.match(nt, /<urn:name:stdin#Alice> <urn:property:role> "Product Manager" \./)
-  assert.match(nt, /<urn:name:stdin#Alice#Skills> <http:\/\/www\.w3\.org\/2000\/01\/rdf-schema#label> "Skills" \./)
-  assert.match(nt, /<urn:name:stdin#Alice#Skills> <urn:property:expertise> "Research" \./)
+  assert.match(nt, /<urn:name:stdin#Skills> <http:\/\/www\.w3\.org\/2000\/01\/rdf-schema#label> "Skills" \./)
+  assert.match(nt, /<urn:name:stdin#Skills> <urn:property:expertise> "Research" \./)
   assert.match(nt, /<urn:name:stdin#Bob> <urn:property:role> "Developer" \./)
 })
 
@@ -62,6 +74,14 @@ role :: Document Role
 
   assert.match(nt, /<urn:name:stdin> <urn:property:role> "Document Role" \./)
   assert.doesNotMatch(nt, /<urn:name:stdin#Team>/)
+})
+
+test('heading labels stay plain literals even when the heading looks like a resource', () => {
+  const nt = triplify(`## [[Next steps]]
+`)
+
+  assert.match(nt, /<urn:name:stdin#%5B%5BNext%20steps%5D%5D> <http:\/\/www\.w3\.org\/2000\/01\/rdf-schema#label> "\[\[Next steps\]\]" \./)
+  assert.doesNotMatch(nt, /<urn:name:Next%20steps>/)
 })
 
 test('links, dates, and schema curies are emitted as RDF terms', () => {
