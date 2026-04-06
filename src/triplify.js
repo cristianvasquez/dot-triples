@@ -122,10 +122,6 @@ function parseScalar(value) {
   return stripQuotes(trimmed)
 }
 
-function removeCodeFences(content) {
-  return content.replace(/```[\s\S]*?```/g, '')
-}
-
 function sectionIri(subject, headings) {
   const base = typeof subject === 'string' ? subject.slice(1, -1) : subject.value
   const suffix = headings.map(heading => encodeURI(heading)).join('#')
@@ -134,55 +130,6 @@ function sectionIri(subject, headings) {
 
 function sectionSubject(subject, headings) {
   return rdf.namedNode(sectionIri(subject, headings).slice(1, -1))
-}
-
-function parseBodyEntries(body) {
-  const cleanBody = removeCodeFences(body)
-  const entries = []
-  let currentH2 = null
-  let currentH3 = null
-
-  for (const line of cleanBody.split(/\r?\n/)) {
-    const headingMatch = line.match(/^(#{1,6})\s+(.*?)\s*$/)
-    if (headingMatch) {
-      const depth = headingMatch[1].length
-      const title = headingMatch[2].trim()
-
-      if (depth === 2 && title) {
-        currentH2 = title
-        currentH3 = null
-      } else if (depth === 3 && title) {
-        currentH3 = title
-      } else if (depth < 2) {
-        currentH2 = null
-        currentH3 = null
-      }
-
-      entries.push({
-        type: 'heading',
-        depth,
-        title,
-        subjectPath: depth === 3
-          ? [currentH3].filter(Boolean)
-          : [currentH2].filter(Boolean)
-      })
-      continue
-    }
-
-    const normalizedLine = line.replace(/^\s*[-*+]\s+/, '')
-    const match = normalizedLine.match(/^\s*([^:#][^:]*?)\s*::\s*(.+?)\s*$/)
-    if (!match) continue
-
-    const [, key, rawValue] = match
-    entries.push({
-      type: 'field',
-      key: key.trim(),
-      value: parseInlineValue(rawValue),
-      subjectPath: currentH3 ? [currentH3].filter(Boolean) : [currentH2].filter(Boolean)
-    })
-  }
-
-  return entries
 }
 
 function parseInlineValue(value) {
@@ -485,61 +432,8 @@ export function createTriplifyQuadTransform(options = {}) {
   })
 }
 
-export function createTriplifyTransform(options = {}) {
-  const decoder = new StringDecoder('utf8')
-  let carry = ''
-
-  return new Transform({
-    transform(chunk, encoding, callback) {
-      try {
-        const text = carry + decoder.write(chunk)
-        const parts = text.split('\n')
-        carry = parts.pop() ?? ''
-
-        const processor = this.processor ??= createTriplifyProcessor({
-          ...options,
-          onQuad: quad => {
-            this.push(`${quad.toString()}\n`)
-          }
-        })
-
-        for (const line of parts) {
-          processor.writeLine(line)
-        }
-
-        callback()
-      } catch (error) {
-        callback(error)
-      }
-    },
-
-    flush(callback) {
-      try {
-        const remainder = carry + decoder.end()
-        const processor = this.processor ??= createTriplifyProcessor({
-          ...options,
-          onQuad: quad => {
-            this.push(`${quad.toString()}\n`)
-          }
-        })
-
-        if (remainder) {
-          processor.writeLine(remainder)
-        }
-
-        processor.end()
-        callback()
-      } catch (error) {
-        callback(error)
-      }
-    }
-  })
-}
-
 export const internals = {
-  splitFrontmatter,
   parseSimpleYaml,
-  parseBodyEntries,
   parseScalar,
   predicateIri,
   subjectIri,

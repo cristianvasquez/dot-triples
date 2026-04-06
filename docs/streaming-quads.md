@@ -3,10 +3,15 @@
 The original shape of this repo was:
 
 ```bash
-cat note.md | triplify | mapping | typed-literals
+cat note.md | triplify
 ```
 
-That is attractive because every stage is text and every stage is shell-composable.
+Internally that still means:
+
+1. triplify markdown into quads
+2. map CURIEs over quads
+3. type literals over quads
+4. serialize once at the end
 
 ## The Problem
 
@@ -59,27 +64,20 @@ markdownStream
   .pipe(typedLiteralsQuadTransform())
 ```
 
-But this does not work as a raw quad pipeline across separate commands:
-
-```bash
-triplify | mapping | typed-literals
-```
-
-unless each command serializes back to text between stages.
+But that quad pipeline stays inside one Node process rather than shelling out to separate CLIs.
 
 ## Current Compromise
 
-The repo keeps the text CLIs because they are convenient:
+The repo keeps one text CLI because it is convenient:
 
 - `triplify`
-- `mapping`
-- `typed-literals`
 
 But the high-performance path is now the in-process quad pipeline.
 
 So the design is:
 
 - text at the CLI boundary
-- quads in the middle when performance matters
+- quads in the middle
+- one serialization step at the end
 
 That keeps the tool usable from the shell while still allowing a much faster internal execution path.

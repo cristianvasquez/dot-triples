@@ -1,8 +1,11 @@
 import { basename, resolve } from 'node:path'
 import { readFile } from 'node:fs/promises'
+import { Readable } from 'node:stream'
+import rdf from 'rdf-ext'
 import { triplify as bigTriplify } from '/home/cvasquez/github.com/cristianvasquez/vault-triplifier/index.js'
-import { triplify as smallTriplify } from '../src/triplify.js'
-import { typedLiterals } from '../src/typed-literals.js'
+import { createTriplifyQuadTransform } from '../src/triplify.js'
+import { createMappingQuadTransform } from '../src/mapping.js'
+import { createTypedLiteralsQuadTransform } from '../src/typed-literals.js'
 
 const RDF_TYPE = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type'
 const RDFS_LABEL = 'http://www.w3.org/2000/01/rdf-schema#label'
@@ -96,10 +99,18 @@ async function runComparison(filePath, options = {}) {
       .map(quadToLine)
   )
 
-  const smallUntyped = smallTriplify(content, {
-    sourceId: basename(absolutePath)
+  let smallStream = Readable
+    .from([content])
+    .pipe(createTriplifyQuadTransform({ sourceId: basename(absolutePath) }))
+    .pipe(createMappingQuadTransform())
+
+  if (options.typed) {
+    smallStream = smallStream.pipe(createTypedLiteralsQuadTransform())
+  }
+
+  const smallOutput = await rdf.io.stream.toText('application/n-triples', smallStream, {
+    factory: rdf
   })
-  const smallOutput = options.typed ? typedLiterals(smallUntyped) : smallUntyped
   const smallLines = normalizeLines(
     smallOutput.split('\n').filter(Boolean)
   )

@@ -1,10 +1,5 @@
 import rdf from 'rdf-ext'
-import {
-  createLineTransform,
-  createQuadTransform,
-  parseTripleLine,
-  serializeTripleLine
-} from './ntriples.js'
+import { Transform } from 'node:stream'
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 const ISO_DATETIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?$/
@@ -58,32 +53,19 @@ export function typeQuad(quad) {
   )
 }
 
-async function transformLine(line) {
-  const quad = await parseTripleLine(line)
-  if (!quad) return ''
-  return serializeTripleLine(typeQuad(quad))
-}
-
-export async function typedLiterals(input) {
-  const parts = []
-
-  for (const line of String(input).split('\n')) {
-    parts.push(await transformLine(line))
-  }
-
-  return parts.join('\n')
-}
-
-export function createTypedLiteralsTransform() {
-  return createLineTransform(typeQuad)
-}
-
 export function createTypedLiteralsQuadTransform() {
-  return createQuadTransform(typeQuad)
+  return new Transform({
+    objectMode: true,
+    transform(quad, encoding, callback) {
+      try {
+        callback(null, typeQuad(quad))
+      } catch (error) {
+        callback(error)
+      }
+    }
+  })
 }
 
 export const internals = {
-  inferTypedLiteral,
-  transformLine,
-  typeQuad
+  inferTypedLiteral
 }

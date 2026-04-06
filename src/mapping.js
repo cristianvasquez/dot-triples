@@ -1,10 +1,5 @@
 import rdf from 'rdf-ext'
-import {
-  createLineTransform,
-  createQuadTransform,
-  parseTripleLine,
-  serializeTripleLine
-} from './ntriples.js'
+import { Transform } from 'node:stream'
 import { PREFIXES } from './prefixes.js'
 
 function expandCurie(curie) {
@@ -30,32 +25,19 @@ export function mapQuad(quad) {
   )
 }
 
-export async function mapLine(line) {
-  const quad = await parseTripleLine(line)
-  if (!quad) return ''
-  return serializeTripleLine(mapQuad(quad))
-}
-
-export async function mapping(input) {
-  const parts = []
-
-  for (const line of String(input).split('\n')) {
-    parts.push(await mapLine(line))
-  }
-
-  return parts.join('\n')
-}
-
-export function createMappingTransform() {
-  return createLineTransform(mapQuad)
-}
-
 export function createMappingQuadTransform() {
-  return createQuadTransform(mapQuad)
+  return new Transform({
+    objectMode: true,
+    transform(quad, encoding, callback) {
+      try {
+        callback(null, mapQuad(quad))
+      } catch (error) {
+        callback(error)
+      }
+    }
+  })
 }
 
 export const internals = {
-  expandCurie,
-  mapLine,
-  mapQuad
+  expandCurie
 }

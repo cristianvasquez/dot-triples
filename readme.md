@@ -14,10 +14,11 @@ The goal is not full feature parity. The goal is a smaller tool that preserves t
 ```bash
 cat note.md | node src/cli.js
 cat note.md | triplify
-cat note.md | triplify | mapping | typed-literals
 ```
 
-The CLI reads Markdown from stdin and emits N-Triples.
+The CLI reads Markdown from stdin and runs one in-process pipeline:
+`triplify -> mapping -> typed-literals -> serialize`.
+It emits final N-Triples on stdout.
 
 ## Supported input
 
@@ -61,14 +62,11 @@ type :: schema:Person
 
 ## Optional filters
 
-This repo also includes separate post-processing filters so mapping and typing stay outside the Markdown parser:
-
-```bash
-cat note.md | triplify | mapping | typed-literals
-```
+Inside that pipeline:
 
 - `mapping` expands known CURIEs in RDF term positions.
 - `typed-literals` upgrades plain literals into booleans, numbers, and date/dateTime literals when they match the expected lexical forms.
+- serialization happens last, after the quad transforms.
 
 ## Internal Pipeline
 
@@ -80,7 +78,7 @@ Unix shell pipes move bytes, not JavaScript objects, so a fully quad-native pipe
 
 The current compromise is:
 
-- text CLIs remain available at the boundary
+- one text CLI remains at the boundary
 - the high-performance path uses quads internally
 
 See [docs/streaming-quads.md](/home/cvasquez/doing/simpler%20triplifier/docs/streaming-quads.md) for the rationale.
@@ -108,8 +106,8 @@ Recent measurement on the local workspace:
 - Obsidian-style `predicate :: value` fields.
 - `is a`, `a`, and `type` mapping to `rdf:type`.
 - Reversible `urn:name:` and `urn:property:` URI generation.
-- Separate CURIE expansion with `mapping`.
-- Separate post-processing with `typed-literals`.
+- Separate in-process CURIE expansion with `mapping`.
+- Separate in-process literal typing with `typed-literals`.
 - Internal quad-based transforms with `rdf-ext`.
 - A comparison script against the original `vault-triplifier`.
 
