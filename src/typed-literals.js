@@ -1,5 +1,10 @@
 import rdf from 'rdf-ext'
-import { createLineTransform, parseTripleLine, serializeTripleLine } from './ntriples.js'
+import {
+  createLineTransform,
+  createQuadTransform,
+  parseTripleLine,
+  serializeTripleLine
+} from './ntriples.js'
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 const ISO_DATETIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?$/
@@ -71,6 +76,10 @@ export async function typedLiterals(input) {
 
 export function createTypedLiteralsTransform() {
   return createLineTransform(typeQuad)
+}
+
+export function createTypedLiteralsQuadTransform() {
+  return createQuadTransform(typeQuad)
 }
 
 export const internals = {

@@ -10,7 +10,8 @@
   },
   "scripts": {
     "test": "node --test",
-    "compare": "node scripts/compare-with-vault-triplifier.mjs"
+    "compare": "node scripts/compare-with-vault-triplifier.mjs",
+    "bench:workspace": "node test/benchmark-workspace.js"
   },
   "dependencies": {
     "rdf-ext": "^2.6.0"

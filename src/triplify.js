@@ -2,13 +2,12 @@ import { Transform } from 'node:stream'
 import { StringDecoder } from 'node:string_decoder'
 import { basename } from 'node:path'
 import rdf from 'rdf-ext'
-import { serializeTripleLine } from './ntriples.js'
 import { PREFIXES } from './prefixes.js'
 
 const NAME_BASE = 'urn:name:'
 const PROPERTY_BASE = 'urn:property:'
 const CURIE = /^[a-zA-Z][\w-]*:[^\s]+$/
-const ABSOLUTE_IRI = /^[a-zA-Z][a-zA-Z\d+.-]*:/
+const ABSOLUTE_IRI = /^[a-zA-Z][a-zA-Z\d+.-]*:[^\s]*$/
 const RDF = rdf.namespace(PREFIXES.rdf)
 const RDFS = rdf.namespace(PREFIXES.rdfs)
 
@@ -431,15 +430,15 @@ export function triplify(content, options = {}) {
   }
 
   processor.end()
-  return quads.map(serializeTripleLine).join('\n')
+  return quads.map(quad => quad.toString()).join('\n')
 }
 
-export function createTriplifyTransform(options = {}) {
+export function createTriplifyQuadTransform(options = {}) {
   const decoder = new StringDecoder('utf8')
   let carry = ''
-  let emittedAny = false
 
   return new Transform({
+    readableObjectMode: true,
     transform(chunk, encoding, callback) {
       try {
         const text = carry + decoder.write(chunk)
@@ -449,12 +448,7 @@ export function createTriplifyTransform(options = {}) {
         const processor = this.processor ??= createTriplifyProcessor({
           ...options,
           onQuad: quad => {
-            if (emittedAny) {
-              this.push('\n')
-            }
-
-            this.push(serializeTripleLine(quad))
-            emittedAny = true
+            this.push(quad)
           }
         })
 
@@ -474,12 +468,58 @@ export function createTriplifyTransform(options = {}) {
         const processor = this.processor ??= createTriplifyProcessor({
           ...options,
           onQuad: quad => {
-            if (emittedAny) {
-              this.push('\n')
-            }
+            this.push(quad)
+          }
+        })
 
-            this.push(serializeTripleLine(quad))
-            emittedAny = true
+        if (remainder) {
+          processor.writeLine(remainder)
+        }
+
+        processor.end()
+        callback()
+      } catch (error) {
+        callback(error)
+      }
+    }
+  })
+}
+
+export function createTriplifyTransform(options = {}) {
+  const decoder = new StringDecoder('utf8')
+  let carry = ''
+
+  return new Transform({
+    transform(chunk, encoding, callback) {
+      try {
+        const text = carry + decoder.write(chunk)
+        const parts = text.split('\n')
+        carry = parts.pop() ?? ''
+
+        const processor = this.processor ??= createTriplifyProcessor({
+          ...options,
+          onQuad: quad => {
+            this.push(`${quad.toString()}\n`)
+          }
+        })
+
+        for (const line of parts) {
+          processor.writeLine(line)
+        }
+
+        callback()
+      } catch (error) {
+        callback(error)
+      }
+    },
+
+    flush(callback) {
+      try {
+        const remainder = carry + decoder.end()
+        const processor = this.processor ??= createTriplifyProcessor({
+          ...options,
+          onQuad: quad => {
+            this.push(`${quad.toString()}\n`)
           }
         })
 

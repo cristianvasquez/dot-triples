@@ -14,7 +14,7 @@ The goal is not full feature parity. The goal is a smaller tool that preserves t
 ```bash
 cat note.md | node src/cli.js
 cat note.md | triplify
-cat note.md | triplify | typed-literals
+cat note.md | triplify | mapping | typed-literals
 ```
 
 The CLI reads Markdown from stdin and emits N-Triples.
@@ -52,7 +52,8 @@ type :: schema:Person
 - Comma-separated values produce multiple triples.
 - `[[Wiki Links]]` become `urn:name:<linked-note>` IRIs.
 - Plain values stay plain string literals.
-- Absolute IRIs, CURIEs like `schema:Person`, and `[[Wiki Links]]` are emitted as resources.
+- Absolute IRIs and `[[Wiki Links]]` are emitted as resources.
+- Known CURIEs like `schema:Person` are preserved by `triplify` and expanded later by `mapping`.
 - `rdfs:label` values always stay plain string literals.
 - Lines like `- property :: value` are accepted; list markers are ignored before field parsing.
 - Backticks keep values literal, but with the current syntax-only design they mainly help preserve commas or formatting.
@@ -60,13 +61,45 @@ type :: schema:Person
 
 ## Optional filters
 
-This repo also includes a separate `typed-literals` filter so typing stays outside the Markdown parser:
+This repo also includes separate post-processing filters so mapping and typing stay outside the Markdown parser:
 
 ```bash
-cat note.md | triplify | typed-literals
+cat note.md | triplify | mapping | typed-literals
 ```
 
-That filter upgrades plain literals into booleans, numbers, and date/dateTime literals when they match the expected lexical forms.
+- `mapping` expands known CURIEs in RDF term positions.
+- `typed-literals` upgrades plain literals into booleans, numbers, and date/dateTime literals when they match the expected lexical forms.
+
+## Internal Pipeline
+
+For performance, the fast path inside Node is no longer "text all the way down".
+`triplify` builds RDFJS quads with `rdf-ext`, and the downstream stages can transform quads directly before serializing back to N-Triples.
+
+The important tradeoff is that pure quad streams are only composable in-process.
+Unix shell pipes move bytes, not JavaScript objects, so a fully quad-native pipeline is faster but less shell-composable.
+
+The current compromise is:
+
+- text CLIs remain available at the boundary
+- the high-performance path uses quads internally
+
+See [docs/streaming-quads.md](/home/cvasquez/doing/simpler%20triplifier/docs/streaming-quads.md) for the rationale.
+
+## Benchmark
+
+The workspace benchmark excludes `.obsidian/` and `node_modules/` and reports both parser-only and full-pipeline throughput:
+
+```bash
+npm run bench:workspace -- ~/obsidian/workspace
+```
+
+Recent measurement on the local workspace:
+
+- `2881` markdown files
+- `3.916 MiB` input
+- `triplify`: about `89 ms`
+- in-process `mapping + typed-literals`: about `71 ms`
+- total in-process pipeline: about `160 ms`
 
 ## Included
 
@@ -75,7 +108,9 @@ That filter upgrades plain literals into booleans, numbers, and date/dateTime li
 - Obsidian-style `predicate :: value` fields.
 - `is a`, `a`, and `type` mapping to `rdf:type`.
 - Reversible `urn:name:` and `urn:property:` URI generation.
+- Separate CURIE expansion with `mapping`.
 - Separate post-processing with `typed-literals`.
+- Internal quad-based transforms with `rdf-ext`.
 - A comparison script against the original `vault-triplifier`.
 
 ## Left Out
@@ -111,3 +146,5 @@ This is meant to support "close enough for the useful subset", not bit-for-bit e
 ```bash
 npm test
 ```
+
+Note: `npm test` currently also runs the workspace benchmark because it lives under `test/`.
