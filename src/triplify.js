@@ -1,12 +1,16 @@
 import { Transform } from 'node:stream'
 import { StringDecoder } from 'node:string_decoder'
 import { basename } from 'node:path'
+import rdf from 'rdf-ext'
+import { serializeTripleLine } from './ntriples.js'
 import { PREFIXES } from './prefixes.js'
 
 const NAME_BASE = 'urn:name:'
 const PROPERTY_BASE = 'urn:property:'
 const CURIE = /^[a-zA-Z][\w-]*:[^\s]+$/
 const ABSOLUTE_IRI = /^[a-zA-Z][a-zA-Z\d+.-]*:/
+const RDF = rdf.namespace(PREFIXES.rdf)
+const RDFS = rdf.namespace(PREFIXES.rdfs)
 
 function splitFrontmatter(content) {
   const input = String(content ?? '')
@@ -124,9 +128,13 @@ function removeCodeFences(content) {
 }
 
 function sectionIri(subject, headings) {
-  const base = subject.slice(1, -1)
+  const base = typeof subject === 'string' ? subject.slice(1, -1) : subject.value
   const suffix = headings.map(heading => encodeURI(heading)).join('#')
   return `<${base}#${suffix}>`
+}
+
+function sectionSubject(subject, headings) {
+  return rdf.namedNode(sectionIri(subject, headings).slice(1, -1))
 }
 
 function parseBodyEntries(body) {
@@ -201,15 +209,7 @@ function isKnownCurie(value) {
   return Boolean(PREFIXES[prefix])
 }
 
-function escapeLiteral(value) {
-  return String(value)
-    .replace(/\\/g, '\\\\')
-    .replace(/"/g, '\\"')
-    .replace(/\n/g, '\\n')
-    .replace(/\r/g, '\\r')
-}
-
-function iri(value, fallbackBase) {
+function namedNodeFromValue(value, fallbackBase) {
   const stringValue = String(value).trim()
 
   if (!stringValue) {
@@ -217,30 +217,14 @@ function iri(value, fallbackBase) {
   }
 
   if (stringValue.startsWith('[[') && stringValue.endsWith(']]')) {
-    return `<${NAME_BASE}${encodeURI(stringValue.slice(2, -2).trim())}>`
+    return rdf.namedNode(`${NAME_BASE}${encodeURI(stringValue.slice(2, -2).trim())}`)
   }
 
-  if (isKnownCurie(stringValue)) return `<${stringValue}>`
+  if (isKnownCurie(stringValue)) return rdf.namedNode(stringValue)
 
-  if (ABSOLUTE_IRI.test(stringValue)) return `<${stringValue}>`
+  if (ABSOLUTE_IRI.test(stringValue)) return rdf.namedNode(stringValue)
 
-  return `<${fallbackBase}${encodeURI(stringValue)}>`
-}
-
-function literal(value) {
-  const stringValue = String(value)
-
-  if (stringValue.startsWith('[[') && stringValue.endsWith(']]')) {
-    return iri(stringValue, NAME_BASE)
-  }
-
-  if (isKnownCurie(stringValue)) return iri(stringValue, NAME_BASE)
-
-  if (ABSOLUTE_IRI.test(stringValue)) {
-    return iri(stringValue, NAME_BASE)
-  }
-
-  return `"${escapeLiteral(stringValue)}"`
+  return rdf.namedNode(`${fallbackBase}${encodeURI(stringValue)}`)
 }
 
 function objectTerm(value) {
@@ -248,61 +232,62 @@ function objectTerm(value) {
     return value.map(item => objectTerm(item))
   }
 
-  if (typeof value === 'string' && value.startsWith('[[') && value.endsWith(']]')) {
-    return iri(value, NAME_BASE)
+  if (typeof value === 'string') {
+    if (value.startsWith('[[') && value.endsWith(']]')) {
+      return namedNodeFromValue(value, NAME_BASE)
+    }
+
+    if (isKnownCurie(value) || ABSOLUTE_IRI.test(value)) {
+      return namedNodeFromValue(value, NAME_BASE)
+    }
   }
 
-  return literal(value)
+  return rdf.literal(String(value))
 }
 
-function plainLiteral(value) {
-  return `"${escapeLiteral(String(value))}"`
+function plainLiteralTerm(value) {
+  return rdf.literal(String(value))
 }
 
 function subjectIri(frontmatter, sourceId = 'stdin') {
-  if (frontmatter.uri) return iri(frontmatter.uri, NAME_BASE)
+  if (frontmatter.uri) return namedNodeFromValue(frontmatter.uri, NAME_BASE)
   const localName = basename(sourceId, '.md')
-  return `<${NAME_BASE}${encodeURI(localName)}>`
+  return rdf.namedNode(`${NAME_BASE}${encodeURI(localName)}`)
 }
 
 function predicateIri(key) {
   if (key === 'type' || key === 'a' || key === 'is a') {
-    return `<${PREFIXES.rdf}type>`
+    return RDF('type')
   }
 
   if (key === 'label' || key === 'title') {
-    return `<${PREFIXES.rdfs}label>`
+    return RDFS('label')
   }
 
-  return iri(key, PROPERTY_BASE)
+  return namedNodeFromValue(key, PROPERTY_BASE)
 }
 
-function pushTriple(lines, subject, predicate, value, options = {}) {
+function emitQuads(onQuad, subject, predicate, value, options = {}) {
   const { plainObject = false } = options
 
   if (Array.isArray(value)) {
-    for (const item of value) pushTriple(lines, subject, predicate, item, options)
+    for (const item of value) emitQuads(onQuad, subject, predicate, item, options)
     return
   }
 
-  const object = plainObject ? plainLiteral(value) : objectTerm(value)
-  lines.push(`${subject} ${predicate} ${object} .`)
+  const object = plainObject ? plainLiteralTerm(value) : objectTerm(value)
+  onQuad(rdf.quad(subject, predicate, object))
 }
 
-function createTripleWriter(onTriple) {
+function createQuadWriter(onQuad) {
   return (subject, predicate, value, options = {}) => {
-    const lines = []
-    pushTriple(lines, subject, predicate, value, options)
-
-    for (const line of lines) {
-      onTriple(line)
-    }
+    emitQuads(onQuad, subject, predicate, value, options)
   }
 }
 
 function createTriplifyProcessor(options = {}) {
-  const { sourceId = 'stdin', onTriple = () => {} } = options
-  const writeTriple = createTripleWriter(onTriple)
+  const { sourceId = 'stdin', onQuad = () => {} } = options
+  const writeQuad = createQuadWriter(onQuad)
   const labeledSubjects = new Set()
   let subject = subjectIri({}, sourceId)
   let frontmatterLines = []
@@ -317,15 +302,15 @@ function createTriplifyProcessor(options = {}) {
 
     for (const [key, value] of Object.entries(frontmatter)) {
       if (key === 'uri') continue
-      writeTriple(subject, predicateIri(key), value, {
+      writeQuad(subject, predicateIri(key), value, {
         plainObject: key === 'label' || key === 'title'
       })
     }
   }
 
   function currentSubject() {
-    if (currentH3) return sectionIri(subject, [currentH3])
-    if (currentH2) return sectionIri(subject, [currentH2])
+    if (currentH3) return sectionSubject(subject, [currentH3])
+    if (currentH2) return sectionSubject(subject, [currentH2])
     return subject
   }
 
@@ -347,15 +332,15 @@ function createTriplifyProcessor(options = {}) {
     }
 
     if ((depth === 2 || depth === 3) && title) {
-      const sectionSubject = depth === 3
-        ? sectionIri(subject, [currentH3].filter(Boolean))
-        : sectionIri(subject, [currentH2].filter(Boolean))
+      const sectionNode = depth === 3
+        ? sectionSubject(subject, [currentH3].filter(Boolean))
+        : sectionSubject(subject, [currentH2].filter(Boolean))
 
-      if (!labeledSubjects.has(sectionSubject)) {
-        writeTriple(sectionSubject, predicateIri('label'), title, {
+      if (!labeledSubjects.has(sectionNode)) {
+        writeQuad(sectionNode, predicateIri('label'), title, {
           plainObject: true
         })
-        labeledSubjects.add(sectionSubject)
+        labeledSubjects.add(sectionNode)
       }
     }
 
@@ -374,7 +359,7 @@ function createTriplifyProcessor(options = {}) {
       return
     }
 
-    writeTriple(currentSubject(), predicateIri(trimmedKey), parseInlineValue(rawValue), {
+    writeQuad(currentSubject(), predicateIri(trimmedKey), parseInlineValue(rawValue), {
       plainObject: trimmedKey === 'label' || trimmedKey === 'title'
     })
   }
@@ -433,11 +418,11 @@ function createTriplifyProcessor(options = {}) {
 }
 
 export function triplify(content, options = {}) {
-  const lines = []
+  const quads = []
   const processor = createTriplifyProcessor({
     ...options,
-    onTriple(line) {
-      lines.push(line)
+    onQuad(quad) {
+      quads.push(quad)
     }
   })
 
@@ -446,7 +431,7 @@ export function triplify(content, options = {}) {
   }
 
   processor.end()
-  return lines.join('\n')
+  return quads.map(serializeTripleLine).join('\n')
 }
 
 export function createTriplifyTransform(options = {}) {
@@ -463,12 +448,12 @@ export function createTriplifyTransform(options = {}) {
 
         const processor = this.processor ??= createTriplifyProcessor({
           ...options,
-          onTriple: line => {
+          onQuad: quad => {
             if (emittedAny) {
               this.push('\n')
             }
 
-            this.push(line)
+            this.push(serializeTripleLine(quad))
             emittedAny = true
           }
         })
@@ -488,12 +473,12 @@ export function createTriplifyTransform(options = {}) {
         const remainder = carry + decoder.end()
         const processor = this.processor ??= createTriplifyProcessor({
           ...options,
-          onTriple: line => {
+          onQuad: quad => {
             if (emittedAny) {
               this.push('\n')
             }
 
-            this.push(line)
+            this.push(serializeTripleLine(quad))
             emittedAny = true
           }
         })
