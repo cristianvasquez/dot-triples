@@ -1,24 +1,11 @@
+import rdf from 'rdf-ext'
+import { createLineTransform, parseTripleLine, serializeTripleLine } from './ntriples.js'
+
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 const ISO_DATETIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?$/
 const YYYY_MM_DD_SLASH = /^\d{4}\/\d{2}\/\d{2}$/
 const MM_DD_YYYY = /^\d{2}\/\d{2}\/\d{4}$/
 const XSD = 'http://www.w3.org/2001/XMLSchema#'
-
-function escapeLiteral(value) {
-  return String(value)
-    .replace(/\\/g, '\\\\')
-    .replace(/"/g, '\\"')
-    .replace(/\n/g, '\\n')
-    .replace(/\r/g, '\\r')
-}
-
-function unescapeLiteral(value) {
-  return String(value)
-    .replace(/\\\\/g, '\\')
-    .replace(/\\"/g, '"')
-    .replace(/\\n/g, '\n')
-    .replace(/\\r/g, '\r')
-}
 
 function isValidDateString(value) {
   return (
@@ -33,48 +20,61 @@ function inferTypedLiteral(value) {
   const trimmed = String(value).trim()
 
   if (trimmed === '') return null
-  if (trimmed === 'true') return `"true"^^<${XSD}boolean>`
-  if (trimmed === 'false') return `"false"^^<${XSD}boolean>`
+  if (trimmed === 'true') return `${XSD}boolean`
+  if (trimmed === 'false') return `${XSD}boolean`
 
   const numberValue = Number(trimmed)
   if (!Number.isNaN(numberValue) && Number.isFinite(numberValue)) {
-    const datatype = Number.isInteger(numberValue) ? 'integer' : 'decimal'
-    return `"${trimmed}"^^<${XSD}${datatype}>`
+    return `${XSD}${Number.isInteger(numberValue) ? 'integer' : 'decimal'}`
   }
 
   if (isValidDateString(trimmed)) {
     const date = new Date(trimmed)
     if (!Number.isNaN(date.getTime())) {
-      const datatype = ISO_DATE.test(trimmed) ? 'date' : 'dateTime'
-      return `"${trimmed}"^^<${XSD}${datatype}>`
+      return `${XSD}${ISO_DATE.test(trimmed) ? 'date' : 'dateTime'}`
     }
   }
 
   return null
 }
 
-function transformLine(line) {
-  const match = line.match(/^(<[^>]+>\s+<[^>]+>\s+)"((?:[^"\\]|\\.)*)"( \.)$/)
-  if (!match) return line
+export function typeQuad(quad) {
+  if (quad.object.termType !== 'Literal') return quad
+  if (quad.object.language) return quad
+  if (quad.object.datatype?.value !== `${XSD}string`) return quad
 
-  const [, start, rawLiteral, end] = match
-  const decoded = unescapeLiteral(rawLiteral)
-  const typed = inferTypedLiteral(decoded)
+  const datatype = inferTypedLiteral(quad.object.value)
+  if (!datatype) return quad
 
-  if (!typed) return line
-  return `${start}${typed}${end}`
+  return rdf.quad(
+    quad.subject,
+    quad.predicate,
+    rdf.literal(quad.object.value, rdf.namedNode(datatype))
+  )
 }
 
-export function typedLiterals(input) {
-  return String(input)
-    .split('\n')
-    .map(transformLine)
-    .join('\n')
+async function transformLine(line) {
+  const quad = await parseTripleLine(line)
+  if (!quad) return ''
+  return serializeTripleLine(typeQuad(quad))
+}
+
+export async function typedLiterals(input) {
+  const parts = []
+
+  for (const line of String(input).split('\n')) {
+    parts.push(await transformLine(line))
+  }
+
+  return parts.join('\n')
+}
+
+export function createTypedLiteralsTransform() {
+  return createLineTransform(typeQuad)
 }
 
 export const internals = {
   inferTypedLiteral,
   transformLine,
-  unescapeLiteral,
-  escapeLiteral
+  typeQuad
 }

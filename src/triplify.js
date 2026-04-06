@@ -1,13 +1,7 @@
+import { Transform } from 'node:stream'
+import { StringDecoder } from 'node:string_decoder'
 import { basename } from 'node:path'
-
-const PREFIXES = {
-  rdf: 'http://www.w3.org/1999/02/22-rdf-syntax-ns#',
-  rdfs: 'http://www.w3.org/2000/01/rdf-schema#',
-  schema: 'https://schema.org/',
-  skos: 'http://www.w3.org/2004/02/skos/core#',
-  owl: 'http://www.w3.org/2002/07/owl#',
-  prov: 'http://www.w3.org/ns/prov#'
-}
+import { PREFIXES } from './prefixes.js'
 
 const NAME_BASE = 'urn:name:'
 const PROPERTY_BASE = 'urn:property:'
@@ -201,12 +195,10 @@ function parseAtomicValue(value) {
   return trimmed
 }
 
-function expandCurie(value) {
-  const separator = value.indexOf(':')
-  const prefix = value.slice(0, separator)
-  const suffix = value.slice(separator + 1)
-  const base = PREFIXES[prefix]
-  return base ? `${base}${suffix}` : null
+function isKnownCurie(value) {
+  if (!CURIE.test(value)) return false
+  const prefix = value.slice(0, value.indexOf(':'))
+  return Boolean(PREFIXES[prefix])
 }
 
 function escapeLiteral(value) {
@@ -228,8 +220,8 @@ function iri(value, fallbackBase) {
     return `<${NAME_BASE}${encodeURI(stringValue.slice(2, -2).trim())}>`
   }
 
-  const expanded = CURIE.test(stringValue) ? expandCurie(stringValue) : null
-  if (expanded) return `<${expanded}>`
+  if (isKnownCurie(stringValue)) return `<${stringValue}>`
+
   if (ABSOLUTE_IRI.test(stringValue)) return `<${stringValue}>`
 
   return `<${fallbackBase}${encodeURI(stringValue)}>`
@@ -242,7 +234,9 @@ function literal(value) {
     return iri(stringValue, NAME_BASE)
   }
 
-  if (ABSOLUTE_IRI.test(stringValue) || CURIE.test(stringValue)) {
+  if (isKnownCurie(stringValue)) return iri(stringValue, NAME_BASE)
+
+  if (ABSOLUTE_IRI.test(stringValue)) {
     return iri(stringValue, NAME_BASE)
   }
 
@@ -295,48 +289,226 @@ function pushTriple(lines, subject, predicate, value, options = {}) {
   lines.push(`${subject} ${predicate} ${object} .`)
 }
 
-export function triplify(content, options = {}) {
-  const { sourceId = 'stdin' } = options
-  const { frontmatter, body } = splitFrontmatter(content)
-  const subject = subjectIri(frontmatter, sourceId)
-  const lines = []
-  const labeledSubjects = new Set()
+function createTripleWriter(onTriple) {
+  return (subject, predicate, value, options = {}) => {
+    const lines = []
+    pushTriple(lines, subject, predicate, value, options)
 
-  for (const [key, value] of Object.entries(frontmatter)) {
-    if (key === 'uri') continue
-    pushTriple(lines, subject, predicateIri(key), value, {
-      plainObject: key === 'label' || key === 'title'
-    })
+    for (const line of lines) {
+      onTriple(line)
+    }
+  }
+}
+
+function createTriplifyProcessor(options = {}) {
+  const { sourceId = 'stdin', onTriple = () => {} } = options
+  const writeTriple = createTripleWriter(onTriple)
+  const labeledSubjects = new Set()
+  let subject = subjectIri({}, sourceId)
+  let frontmatterLines = []
+  let inFrontmatter = false
+  let atDocumentStart = true
+  let inCodeFence = false
+  let currentH2 = null
+  let currentH3 = null
+
+  function emitFrontmatter(frontmatter) {
+    subject = subjectIri(frontmatter, sourceId)
+
+    for (const [key, value] of Object.entries(frontmatter)) {
+      if (key === 'uri') continue
+      writeTriple(subject, predicateIri(key), value, {
+        plainObject: key === 'label' || key === 'title'
+      })
+    }
   }
 
-  for (const entry of parseBodyEntries(body)) {
-    if (entry.type === 'heading') {
-      if (entry.depth !== 2 && entry.depth !== 3) continue
+  function currentSubject() {
+    if (currentH3) return sectionIri(subject, [currentH3])
+    if (currentH2) return sectionIri(subject, [currentH2])
+    return subject
+  }
 
-      const sectionSubject = sectionIri(subject, entry.subjectPath)
+  function handleHeading(line) {
+    const headingMatch = line.match(/^(#{1,6})\s+(.*?)\s*$/)
+    if (!headingMatch) return false
+
+    const depth = headingMatch[1].length
+    const title = headingMatch[2].trim()
+
+    if (depth === 2 && title) {
+      currentH2 = title
+      currentH3 = null
+    } else if (depth === 3 && title) {
+      currentH3 = title
+    } else if (depth < 2) {
+      currentH2 = null
+      currentH3 = null
+    }
+
+    if ((depth === 2 || depth === 3) && title) {
+      const sectionSubject = depth === 3
+        ? sectionIri(subject, [currentH3].filter(Boolean))
+        : sectionIri(subject, [currentH2].filter(Boolean))
+
       if (!labeledSubjects.has(sectionSubject)) {
-        pushTriple(lines, sectionSubject, predicateIri('label'), entry.title, {
+        writeTriple(sectionSubject, predicateIri('label'), title, {
           plainObject: true
         })
         labeledSubjects.add(sectionSubject)
       }
-      continue
     }
 
-    const activeSubject = entry.subjectPath.length > 0
-      ? sectionIri(subject, entry.subjectPath)
-      : subject
+    return true
+  }
 
-    if (entry.key === 'uri' && entry.subjectPath.length > 0) {
-      continue
+  function handleField(line) {
+    const normalizedLine = line.replace(/^\s*[-*+]\s+/, '')
+    const match = normalizedLine.match(/^\s*([^:#][^:]*?)\s*::\s*(.+?)\s*$/)
+    if (!match) return
+
+    const [, key, rawValue] = match
+    const trimmedKey = key.trim()
+
+    if (trimmedKey === 'uri' && currentSubject() !== subject) {
+      return
     }
 
-    pushTriple(lines, activeSubject, predicateIri(entry.key), entry.value, {
-      plainObject: entry.key === 'label' || entry.key === 'title'
+    writeTriple(currentSubject(), predicateIri(trimmedKey), parseInlineValue(rawValue), {
+      plainObject: trimmedKey === 'label' || trimmedKey === 'title'
     })
   }
 
+  function processBodyLine(line) {
+    if (line.trimStart().startsWith('```')) {
+      inCodeFence = !inCodeFence
+      return
+    }
+
+    if (inCodeFence) return
+    if (handleHeading(line)) return
+    handleField(line)
+  }
+
+  return {
+    writeLine(line) {
+      const normalizedLine = line.replace(/\r$/, '')
+
+      if (atDocumentStart) {
+        atDocumentStart = false
+
+        if (normalizedLine === '---') {
+          inFrontmatter = true
+          frontmatterLines = []
+          return
+        }
+      }
+
+      if (inFrontmatter) {
+        if (normalizedLine === '---') {
+          inFrontmatter = false
+          emitFrontmatter(parseSimpleYaml(frontmatterLines.join('\n')))
+          frontmatterLines = []
+          return
+        }
+
+        frontmatterLines.push(normalizedLine)
+        return
+      }
+
+      processBodyLine(normalizedLine)
+    },
+
+    end() {
+      if (!inFrontmatter) return
+
+      inFrontmatter = false
+      processBodyLine('---')
+      for (const line of frontmatterLines) {
+        processBodyLine(line)
+      }
+      frontmatterLines = []
+    }
+  }
+}
+
+export function triplify(content, options = {}) {
+  const lines = []
+  const processor = createTriplifyProcessor({
+    ...options,
+    onTriple(line) {
+      lines.push(line)
+    }
+  })
+
+  for (const line of String(content).split('\n')) {
+    processor.writeLine(line)
+  }
+
+  processor.end()
   return lines.join('\n')
+}
+
+export function createTriplifyTransform(options = {}) {
+  const decoder = new StringDecoder('utf8')
+  let carry = ''
+  let emittedAny = false
+
+  return new Transform({
+    transform(chunk, encoding, callback) {
+      try {
+        const text = carry + decoder.write(chunk)
+        const parts = text.split('\n')
+        carry = parts.pop() ?? ''
+
+        const processor = this.processor ??= createTriplifyProcessor({
+          ...options,
+          onTriple: line => {
+            if (emittedAny) {
+              this.push('\n')
+            }
+
+            this.push(line)
+            emittedAny = true
+          }
+        })
+
+        for (const line of parts) {
+          processor.writeLine(line)
+        }
+
+        callback()
+      } catch (error) {
+        callback(error)
+      }
+    },
+
+    flush(callback) {
+      try {
+        const remainder = carry + decoder.end()
+        const processor = this.processor ??= createTriplifyProcessor({
+          ...options,
+          onTriple: line => {
+            if (emittedAny) {
+              this.push('\n')
+            }
+
+            this.push(line)
+            emittedAny = true
+          }
+        })
+
+        if (remainder) {
+          processor.writeLine(remainder)
+        }
+
+        processor.end()
+        callback()
+      } catch (error) {
+        callback(error)
+      }
+    }
+  })
 }
 
 export const internals = {
@@ -346,5 +518,6 @@ export const internals = {
   parseScalar,
   predicateIri,
   subjectIri,
-  sectionIri
+  sectionIri,
+  createTriplifyProcessor
 }

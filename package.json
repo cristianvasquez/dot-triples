@@ -5,10 +5,14 @@
   "description": "Minimal markdown to N-Triples triplifier for frontmatter and Obsidian-style :: fields",
   "bin": {
     "triplify": "./src/cli.js",
+    "mapping": "./src/mapping-cli.js",
     "typed-literals": "./src/typed-literals-cli.js"
   },
   "scripts": {
     "test": "node --test",
     "compare": "node scripts/compare-with-vault-triplifier.mjs"
+  },
+  "dependencies": {
+    "rdf-ext": "^2.6.0"
   }
 }
