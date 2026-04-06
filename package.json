@@ -1,0 +1,13 @@
+{
+  "name": "simpler-triplifier",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Minimal markdown to N-Triples triplifier for frontmatter and Obsidian-style :: fields",
+  "bin": {
+    "triplify": "./src/cli.js",
+    "typed-literals": "./src/typed-literals-cli.js"
+  },
+  "scripts": {
+    "test": "node --test"
+  }
+}
