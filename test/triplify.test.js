@@ -8,6 +8,7 @@ import { triplify, internals } from '../src/triplify.js'
 import { mapQuad } from '../src/curie-expansion.js'
 import { typeQuad } from '../src/typed-literals.js'
 import { createTriplifyQuadTransform, createCurieExpansionQuadTransform, createTypedLiteralsQuadTransform } from '../src/streams.js'
+import { MAPPINGS } from '../src/terms.js'
 
 async function serializeQuadStream(stream) {
   return rdf.io.stream.toText('application/n-triples', stream, { factory: rdf })
@@ -140,13 +141,9 @@ test('mapping expands curies in any RDF term position', () => {
 })
 
 test('predicate aliases are read from mappings.json', () => {
-  const mappings = JSON.parse(
-    readFileSync(new URL('../src/mappings.json', import.meta.url), 'utf8')
-  )
-
-  assert.equal(mappings['is a'], 'rdf:type')
-  assert.equal(mappings.a, 'rdf:type')
-  assert.equal(mappings.type, 'rdf:type')
+  assert.equal(MAPPINGS['is a'], 'rdf:type')
+  assert.equal(MAPPINGS.a, 'rdf:type')
+  assert.equal(MAPPINGS.type, 'rdf:type')
 })
 
 test('mapping rewrites parsed quad terms instead of raw text fragments', () => {

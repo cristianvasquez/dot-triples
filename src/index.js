@@ -2,12 +2,10 @@ import rdf from 'rdf-ext'
 import { createTriplifyProcessor } from './triplify.js'
 import { mapQuad, PREFIXES } from './curie-expansion.js'
 import { typeQuad } from './typed-literals.js'
+import { NAME_BASE, PROPERTY_BASE } from './terms.js'
 
 export { createTriplifyQuadTransform, createCurieExpansionQuadTransform, createTypedLiteralsQuadTransform } from './streams.js'
 export { PREFIXES } from './curie-expansion.js'
-
-const NAME_BASE = 'urn:name:'
-const PROPERTY_BASE = 'urn:property:'
 
 export function pathToFileURL(absolutePath) {
   return rdf.namedNode('file://' + absolutePath)
@@ -18,7 +16,7 @@ export function fileURLToPath(term) {
 }
 
 export function nameToUri(name) {
-  return rdf.namedNode(`${NAME_BASE}${encodeURI(name)}`)
+  return rdf.namedNode(`${NAME_BASE}${encodeURIComponent(name)}`)
 }
 
 export function nameFromUri(term) {
@@ -29,7 +27,7 @@ export function nameFromUri(term) {
 }
 
 export function propertyToUri(property) {
-  return rdf.namedNode(`${PROPERTY_BASE}${encodeURI(property)}`)
+  return rdf.namedNode(`${PROPERTY_BASE}${encodeURIComponent(property)}`)
 }
 
 export function propertyFromUri(term) {

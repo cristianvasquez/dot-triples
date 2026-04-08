@@ -1,6 +1,6 @@
 import rdf from 'rdf-ext'
 import { parseSimpleYaml, parseScalar } from './frontmatter.js'
-import { objectTerm, plainLiteralTerm, predicateIri, subjectIri } from './terms.js'
+import { objectTerm, plainLiteralTerm, predicateIri, subjectIri, MAPPINGS } from './terms.js'
 
 function splitList(value) {
   const parts = []
@@ -73,8 +73,9 @@ function createQuadWriter(onQuad) {
 }
 
 export function createTriplifyProcessor(options = {}) {
-  const { sourceId = 'stdin', onQuad = () => {}, mappings = {} } = options
-  const resolvePredicate = (key) => predicateIri(key, mappings)
+  const { sourceId = 'stdin', onQuad = () => {}, mappings } = options
+  const resolvedMappings = mappings ? { ...MAPPINGS, ...mappings } : MAPPINGS
+  const resolvePredicate = (key) => predicateIri(key, resolvedMappings)
   const writeQuad = createQuadWriter(onQuad)
   const labeledSubjects = new Set()
   let subject = subjectIri({}, sourceId)

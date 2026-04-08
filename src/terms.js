@@ -1,21 +1,17 @@
+import { basename } from 'node:path'
 import rdf from 'rdf-ext'
 
-const NAME_BASE = 'urn:name:'
-const PROPERTY_BASE = 'urn:property:'
+export const NAME_BASE = 'urn:name:'
+export const PROPERTY_BASE = 'urn:property:'
 const CURIE = /^[a-zA-Z][\w-]*:[^\s]+$/
 const ABSOLUTE_IRI = /^[a-zA-Z][a-zA-Z\d+.-]*:[^\s]*$/
-const MAPPINGS = Object.freeze({
+export const MAPPINGS = Object.freeze({
   "is a": "rdf:type",
   "a": "rdf:type",
   "type": "rdf:type",
   "label": "rdfs:label",
   "title": "rdfs:label"
 })
-
-function basename(path, ext) {
-  const name = path.replace(/\\/g, '/').split('/').pop() || path
-  return ext && name.endsWith(ext) ? name.slice(0, -ext.length) : name
-}
 
 export function namedNodeFromValue(value, fallbackBase) {
   const stringValue = String(value).trim()
@@ -65,10 +61,9 @@ export function subjectIri(frontmatter, sourceId = 'stdin') {
   return rdf.namedNode(`${NAME_BASE}${encodeURI(localName)}`)
 }
 
-export function predicateIri(key, extraMappings = {}) {
+export function predicateIri(key, mappings = MAPPINGS) {
   const normalized = String(key).trim()
-  const merged = { ...MAPPINGS, ...extraMappings }
-  const mappedKey = merged[normalized] ?? merged[normalized.toLowerCase()]
+  const mappedKey = mappings[normalized] ?? mappings[normalized.toLowerCase()]
   if (mappedKey) {
     return namedNodeFromValue(mappedKey, PROPERTY_BASE)
   }
