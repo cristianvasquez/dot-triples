@@ -11,6 +11,7 @@
     "compare": "node scripts/compare-with-vault-triplifier.mjs",
     "bench:workspace": "node test/benchmark-workspace.js"
   },
+  "exports": "./src/index.js",
   "dependencies": {
     "rdf-ext": "^2.6.0"
   }

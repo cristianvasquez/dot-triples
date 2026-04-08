@@ -1,14 +1,21 @@
-import { basename } from 'node:path'
-import { readFileSync } from 'node:fs'
 import rdf from 'rdf-ext'
 
 const NAME_BASE = 'urn:name:'
 const PROPERTY_BASE = 'urn:property:'
 const CURIE = /^[a-zA-Z][\w-]*:[^\s]+$/
 const ABSOLUTE_IRI = /^[a-zA-Z][a-zA-Z\d+.-]*:[^\s]*$/
-const MAPPINGS = Object.freeze(
-  JSON.parse(readFileSync(new URL('./mappings.json', import.meta.url), 'utf8'))
-)
+const MAPPINGS = Object.freeze({
+  "is a": "rdf:type",
+  "a": "rdf:type",
+  "type": "rdf:type",
+  "label": "rdfs:label",
+  "title": "rdfs:label"
+})
+
+function basename(path, ext) {
+  const name = path.replace(/\\/g, '/').split('/').pop() || path
+  return ext && name.endsWith(ext) ? name.slice(0, -ext.length) : name
+}
 
 export function namedNodeFromValue(value, fallbackBase) {
   const stringValue = String(value).trim()
@@ -51,16 +58,20 @@ export function plainLiteralTerm(value) {
 }
 
 export function subjectIri(frontmatter, sourceId = 'stdin') {
-  if (frontmatter.uri) return namedNodeFromValue(frontmatter.uri, NAME_BASE)
+  if (frontmatter.uri && String(frontmatter.uri).trim()) {
+    return namedNodeFromValue(frontmatter.uri, NAME_BASE)
+  }
   const localName = basename(sourceId, '.md')
   return rdf.namedNode(`${NAME_BASE}${encodeURI(localName)}`)
 }
 
-export function predicateIri(key) {
-  const mappedKey = MAPPINGS[key]
+export function predicateIri(key, extraMappings = {}) {
+  const normalized = String(key).trim()
+  const merged = { ...MAPPINGS, ...extraMappings }
+  const mappedKey = merged[normalized] ?? merged[normalized.toLowerCase()]
   if (mappedKey) {
     return namedNodeFromValue(mappedKey, PROPERTY_BASE)
   }
 
-  return namedNodeFromValue(key, PROPERTY_BASE)
+  return namedNodeFromValue(normalized, PROPERTY_BASE)
 }

@@ -3,9 +3,7 @@ import { pipeline } from 'node:stream/promises'
 import { basename } from 'node:path'
 import { stdin, stdout, stderr, argv } from 'node:process'
 import rdf from 'rdf-ext'
-import { createTriplifyQuadTransform } from './triplify.js'
-import { createCurieExpansionQuadTransform } from './curie-expansion.js'
-import { createTypedLiteralsQuadTransform } from './typed-literals.js'
+import { createTriplifyQuadTransform, createCurieExpansionQuadTransform, createTypedLiteralsQuadTransform } from './streams.js'
 
 try {
   const sourceId = argv[2] ? basename(argv[2]) : 'stdin'

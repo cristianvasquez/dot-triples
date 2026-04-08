@@ -1,5 +1,3 @@
-import { Transform } from 'node:stream'
-import { StringDecoder } from 'node:string_decoder'
 import rdf from 'rdf-ext'
 import { parseSimpleYaml, parseScalar } from './frontmatter.js'
 import { objectTerm, plainLiteralTerm, predicateIri, subjectIri } from './terms.js'
@@ -31,7 +29,7 @@ function splitList(value) {
 
 function sectionIri(subject, headings) {
   const base = typeof subject === 'string' ? subject.slice(1, -1) : subject.value
-  const suffix = headings.map(heading => encodeURI(heading)).join('#')
+  const suffix = headings.map(heading => encodeURIComponent(heading)).join('#')
   return `<${base}#${suffix}>`
 }
 
@@ -74,8 +72,9 @@ function createQuadWriter(onQuad) {
   }
 }
 
-function createTriplifyProcessor(options = {}) {
-  const { sourceId = 'stdin', onQuad = () => {} } = options
+export function createTriplifyProcessor(options = {}) {
+  const { sourceId = 'stdin', onQuad = () => {}, mappings = {} } = options
+  const resolvePredicate = (key) => predicateIri(key, mappings)
   const writeQuad = createQuadWriter(onQuad)
   const labeledSubjects = new Set()
   let subject = subjectIri({}, sourceId)
@@ -91,7 +90,7 @@ function createTriplifyProcessor(options = {}) {
 
     for (const [key, value] of Object.entries(frontmatter)) {
       if (key === 'uri') continue
-      writeQuad(subject, predicateIri(key), value, {
+      writeQuad(subject, resolvePredicate(key), value, {
         plainObject: key === 'label' || key === 'title'
       })
     }
@@ -126,7 +125,7 @@ function createTriplifyProcessor(options = {}) {
         : sectionSubject(subject, [currentH2].filter(Boolean))
 
       if (!labeledSubjects.has(sectionNode)) {
-        writeQuad(sectionNode, predicateIri('label'), title, {
+        writeQuad(sectionNode, resolvePredicate('label'), title, {
           plainObject: true
         })
         labeledSubjects.add(sectionNode)
@@ -148,7 +147,7 @@ function createTriplifyProcessor(options = {}) {
       return
     }
 
-    writeQuad(currentSubject(), predicateIri(trimmedKey), parseInlineValue(rawValue), {
+    writeQuad(currentSubject(), resolvePredicate(trimmedKey), parseInlineValue(rawValue), {
       plainObject: trimmedKey === 'label' || trimmedKey === 'title'
     })
   }
@@ -221,58 +220,6 @@ export function triplify(content, options = {}) {
 
   processor.end()
   return quads.map(quad => quad.toString()).join('\n')
-}
-
-export function createTriplifyQuadTransform(options = {}) {
-  const decoder = new StringDecoder('utf8')
-  let carry = ''
-
-  return new Transform({
-    readableObjectMode: true,
-    transform(chunk, encoding, callback) {
-      try {
-        const text = carry + decoder.write(chunk)
-        const parts = text.split('\n')
-        carry = parts.pop() ?? ''
-
-        const processor = this.processor ??= createTriplifyProcessor({
-          ...options,
-          onQuad: quad => {
-            this.push(quad)
-          }
-        })
-
-        for (const line of parts) {
-          processor.writeLine(line)
-        }
-
-        callback()
-      } catch (error) {
-        callback(error)
-      }
-    },
-
-    flush(callback) {
-      try {
-        const remainder = carry + decoder.end()
-        const processor = this.processor ??= createTriplifyProcessor({
-          ...options,
-          onQuad: quad => {
-            this.push(quad)
-          }
-        })
-
-        if (remainder) {
-          processor.writeLine(remainder)
-        }
-
-        processor.end()
-        callback()
-      } catch (error) {
-        callback(error)
-      }
-    }
-  })
 }
 
 export const internals = {

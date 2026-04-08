@@ -4,9 +4,10 @@ import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import rdf from 'rdf-ext'
 import { Readable } from 'node:stream'
-import { triplify, internals, createTriplifyQuadTransform } from '../src/triplify.js'
-import { mapQuad, createCurieExpansionQuadTransform } from '../src/curie-expansion.js'
-import { typeQuad, createTypedLiteralsQuadTransform } from '../src/typed-literals.js'
+import { triplify, internals } from '../src/triplify.js'
+import { mapQuad } from '../src/curie-expansion.js'
+import { typeQuad } from '../src/typed-literals.js'
+import { createTriplifyQuadTransform, createCurieExpansionQuadTransform, createTypedLiteralsQuadTransform } from '../src/streams.js'
 
 async function serializeQuadStream(stream) {
   return rdf.io.stream.toText('application/n-triples', stream, { factory: rdf })
@@ -91,6 +92,20 @@ test('heading labels stay plain literals even when the heading looks like a reso
 
   assert.match(nt, /<urn:name:stdin#%5B%5BNext%20steps%5D%5D> <rdfs:label> "\[\[Next steps\]\]" \./)
   assert.doesNotMatch(nt, /<urn:name:Next%20steps>/)
+})
+
+test('hash in heading text is percent-encoded so the section IRI stays valid', () => {
+  const nt = triplify(`## Subsection #person
+property :: value
+
+## [[Flow based programming#Rete.js]]
+other :: thing
+`)
+
+  assert.match(nt, /<urn:name:stdin#Subsection%20%23person> <rdfs:label> "Subsection #person" \./)
+  assert.match(nt, /<urn:name:stdin#Subsection%20%23person> <urn:property:property> "value" \./)
+  assert.match(nt, /<urn:name:stdin#%5B%5BFlow%20based%20programming%23Rete.js%5D%5D> <rdfs:label> "\[\[Flow based programming#Rete\.js\]\]" \./)
+  assert.doesNotMatch(nt, /urn:name:stdin#[^>]*#/)
 })
 
 test('triplify leaves curies untouched until the mapping step', () => {

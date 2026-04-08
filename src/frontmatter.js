@@ -84,7 +84,7 @@ export function parseSimpleYaml(yamlText) {
         cursor += 1
       }
 
-      result[key] = list
+      if (list.length) result[key] = list
       index = cursor - 1
       continue
     }

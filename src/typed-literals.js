@@ -1,5 +1,4 @@
 import rdf from 'rdf-ext'
-import { Transform } from 'node:stream'
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 const ISO_DATETIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?$/
@@ -51,19 +50,6 @@ export function typeQuad(quad) {
     quad.predicate,
     rdf.literal(quad.object.value, rdf.namedNode(datatype))
   )
-}
-
-export function createTypedLiteralsQuadTransform() {
-  return new Transform({
-    objectMode: true,
-    transform(quad, encoding, callback) {
-      try {
-        callback(null, typeQuad(quad))
-      } catch (error) {
-        callback(error)
-      }
-    }
-  })
 }
 
 export const internals = {
