@@ -1,5 +1,5 @@
 {
-  "name": "simpler-triplifier",
+  "name": "dot-triples",
   "version": "0.1.0",
   "type": "module",
   "description": "Minimal markdown to N-Triples triplifier for frontmatter and Obsidian-style :: fields",
