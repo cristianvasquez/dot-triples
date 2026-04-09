@@ -1,0 +1,36 @@
+version: 1
+uri: "osg://repo/local:b4537a2796e64312b60024322e090f4195eb0dd2"
+enabled: true
+group: "temp"
+
+indexing:
+  include:
+    # Glob patterns for files to index. Matching is case-sensitive on Linux.
+    # "README.md"      - only the root readme (won't match readme.md)
+    # "docs/**"        - all text files under docs/ (qmd expands to all known extensions)
+    # "docs/**/*.md"   - only markdown files under docs/
+    # "**/*.md"        - all markdown files anywhere in the repo
+    # "**/*.ttl"       - all Turtle RDF files anywhere in the repo
+    # - "{README,readme}.md"
+    # - "docs/**"
+    - "**/*.md"
+  exclude:
+    # Patterns to skip regardless of include rules.
+    - ".env"
+    - ".env.*"
+    - "node_modules/**"
+    - "__pycache__/**"
+    - ".venv/**"
+    - "venv/**"
+    - "env/**"
+    - ".tox/**"
+    - ".nox/**"
+    - "site-packages/**"
+    # Hidden directories (e.g. .git, .venv)
+    - ".*/**"
+
+triplifier:
+  enabled: true   # extract RDF triples and load into Oxigraph
+
+qmd:
+  enabled: true   # full-text index via qmd
