@@ -1,4 +1,10 @@
-# A simpler and faster triplifier
+---
+uuid: a5f6c8bc-fac6-4478-a837-ffc17e1f0b39
+repo-uri: osg://repo/local:b4537a2796e64312b60024322e090f4195eb0dd2
+repo-name: dot-triples
+---
+
+# [A simpler and faster triplifier](osg://repo/local:b4537a2796e64312b60024322e090f4195eb0dd2)
 
 This repo strips `vault-triplifier` down to the subset I actually use:
 
@@ -7,6 +13,7 @@ This repo strips `vault-triplifier` down to the subset I actually use:
 - N-Triples output on stdout
 
 It deliberately avoids most of the heavier machinery from `vault-triplifier`.
+
 The goal is not full feature parity. The goal is a smaller tool that preserves the Markdown-to-RDF behavior that is actually used most often.
 
 ## Usage
@@ -17,7 +24,9 @@ cat note.md | triplify
 ```
 
 The CLI reads Markdown from stdin and runs one in-process pipeline:
+
 `triplify -> mapping -> typed-literals -> serialize`.
+
 It emits final N-Triples on stdout.
 
 ## Supported input
@@ -71,9 +80,11 @@ Inside that pipeline:
 ## Internal Pipeline
 
 For performance, the fast path inside Node is no longer "text all the way down".
+
 `triplify` builds RDFJS quads with `rdf-ext`, and the downstream stages can transform quads directly before serializing back to N-Triples.
 
 The important tradeoff is that pure quad streams are only composable in-process.
+
 Unix shell pipes move bytes, not JavaScript objects, so a fully quad-native pipeline is faster but less shell-composable.
 
 The current compromise is:
@@ -146,3 +157,12 @@ npm test
 ```
 
 Note: `npm test` currently also runs the workspace benchmark because it lives under `test/`.
+
+## Intents
+
+- [[osg dot-triples core]]
+- [[osg dot-triples curie-expansion]]
+- [[osg dot-triples iri-conventions]]
+- [[osg dot-triples pipeline]]
+- [[osg dot-triples triplifier]]
+- [[osg dot-triples typed-literals]]
