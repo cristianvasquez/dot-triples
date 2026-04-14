@@ -1,78 +1,85 @@
-import { trig } from '@rdfjs-elements/formats-pretty/serializers'
-import getStream from 'get-stream'
-import rdf from 'rdf-ext'
-import { PassThrough, Transform } from 'stream'
-import ns from './namespaces.js'
+import { Transform } from 'node:stream'
+import { StringDecoder } from 'node:string_decoder'
+import { createTriplifyProcessor } from './triplify.js'
+import { mapQuad, PREFIXES } from './curie-expansion.js'
+import { typeQuad } from './typed-literals.js'
 
-
-function createDatasetPrinter () {
-  return createOutputStream({
-    forEach: (chunk => {
-      console.log(chunk.toString())
-    }),
-  })
-}
-
-function createCounter () {
-  return new Transform({
-    objectMode: true,
-    write (chunk, encoding, callback) {
-      this.count = (this.count ?? 0) + 1
-      callback()
-    },
-    flush (callback) {
-      console.log(`${this.count} elements`)
-      callback()
-    },
-  })
-}
-
-async function createPrettyPrinter ({ prefixes = {} }) {
-
-  function toPlain () {
-    const result = {}
-    for (const [key, value] of Object.entries({ ...ns, ...prefixes })) {
-      result[key] = value().value
-    }
-    return result
-  }
-
-  const sink = await trig({
-    prefixes: toPlain(),
-  })
+export function createTriplifyQuadTransform(options = {}) {
+  const decoder = new StringDecoder('utf8')
+  let carry = ''
 
   return new Transform({
-    objectMode: true,
-    write (dataset, encoding, callback) {
-      if (!this.dataset) {
-        this.dataset = rdf.dataset()
+    readableObjectMode: true,
+    transform(chunk, encoding, callback) {
+      try {
+        const text = carry + decoder.write(chunk)
+        const parts = text.split('\n')
+        carry = parts.pop() ?? ''
+
+        const processor = this.processor ??= createTriplifyProcessor({
+          ...options,
+          onQuad: quad => {
+            this.push(quad)
+          }
+        })
+
+        for (const line of parts) {
+          processor.writeLine(line)
+        }
+
+        callback()
+      } catch (error) {
+        callback(error)
       }
-      this.dataset.addAll([...dataset])
-      callback()
     },
-    async flush (callback) {
-      const stream = await sink.import(this.dataset.toStream())
-      const result = await getStream(stream)
-      console.log(result)
-      callback()
-    },
+
+    flush(callback) {
+      try {
+        const remainder = carry + decoder.end()
+        const processor = this.processor ??= createTriplifyProcessor({
+          ...options,
+          onQuad: quad => {
+            this.push(quad)
+          }
+        })
+
+        if (remainder) {
+          processor.writeLine(remainder)
+        }
+
+        processor.end()
+        callback()
+      } catch (error) {
+        callback(error)
+      }
+    }
   })
 }
 
-function createOutputStream ({ forEach } = { forEach: x => x }) {
-  return new PassThrough({
+export function createCurieExpansionQuadTransform(options = {}) {
+  const { prefixes: extraPrefixes = {} } = options
+  const prefixes = { ...PREFIXES, ...extraPrefixes }
+  return new Transform({
     objectMode: true,
-    write (object, encoding, callback) {
-      forEach(object)
-      this.push(object)
-      callback()
-    },
+    transform(quad, encoding, callback) {
+      try {
+        callback(null, mapQuad(quad, prefixes))
+      } catch (error) {
+        callback(error)
+      }
+    }
   })
 }
 
-export {
-  createDatasetPrinter,
-  createCounter,
-  createPrettyPrinter,
-  createOutputStream
+export function createTypedLiteralsQuadTransform() {
+  return new Transform({
+    objectMode: true,
+    transform(quad, encoding, callback) {
+      try {
+        callback(null, typeQuad(quad))
+      } catch (error) {
+        callback(error)
+      }
+    }
+  })
 }

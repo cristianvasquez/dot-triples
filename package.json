@@ -1,35 +1,18 @@
 {
-  "name": "dottriples",
+  "name": "dot-triples",
+  "version": "0.1.0",
   "type": "module",
-  "version": "0.6.5",
-  "description": "",
-  "main": "index.js",
+  "description": "Minimal markdown to N-Triples triplifier for frontmatter and Obsidian-style :: fields",
+  "bin": {
+    "triplify": "./src/cli.js"
+  },
   "scripts": {
-    "test": "mocha --recursive"
+    "test": "node --test",
+    "compare": "node scripts/compare-with-vault-triplifier.mjs",
+    "bench:workspace": "node test/benchmark-workspace.js"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/cristianvasquez/dotTriples.git"
-  },
-  "author": "Cristian Vasquez",
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/cristianvasquez/dotTriples/issues"
-  },
-  "homepage": "https://github.com/cristianvasquez/dotTriples#readme",
+  "exports": "./src/index.js",
   "dependencies": {
-    "@rdfjs-elements/formats-pretty": "^0.5.1",
-    "get-stream": "^6.0.1",
-    "glob": "^8.0.3",
-    "rdf-ext": "^2.1.0",
-    "readable-stream": "^4.2.0",
-    "vault-triplifier": "^0.3.1"
-  },
-  "devDependencies": {
-    "rdf-utils-fs": "^2.3.0",
-    "cli-progress": "^3.11.2",
-    "expect": "^29.3.1",
-    "expect-mocha-snapshot": "^2.1.5",
-    "mocha": "^10.1.0"
+    "rdf-ext": "^2.6.0"
   }
 }

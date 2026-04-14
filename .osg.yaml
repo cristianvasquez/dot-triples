@@ -1,0 +1,23 @@
+version: 1
+uri: osg://repo/local:b4537a2796e64312b60024322e090f4195eb0dd2
+enabled: true
+group: osg
+indexing:
+  include:
+    - "**/*.md"
+  exclude:
+    - .env
+    - .env.*
+    - node_modules/**
+    - __pycache__/**
+    - .venv/**
+    - venv/**
+    - env/**
+    - .tox/**
+    - .nox/**
+    - site-packages/**
+    - .*/**
+triplifier:
+  enabled: true
+qmd:
+  enabled: true
