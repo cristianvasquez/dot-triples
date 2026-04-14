@@ -3,7 +3,7 @@
 The original shape of this repo was:
 
 ```bash
-cat note.md | triplify
+cat note.md | triplify | mapping | typed-literals | serialize
 ```
 
 Internally that still means:
