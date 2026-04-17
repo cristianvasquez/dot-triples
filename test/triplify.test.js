@@ -38,10 +38,37 @@ ignored :: value
 \`\`\`
 
 name :: Alice
-`)
+  `)
 
   assert.match(nt, /<urn:name:stdin> <urn:property:name> "Alice" \./)
-  assert.doesNotMatch(nt, /ignored/)
+  assert.match(nt, /<urn:name:stdin> <urn:code-block:md> "ignored :: value" \./)
+  assert.doesNotMatch(nt, /<urn:name:stdin> <urn:property:ignored> "value" \./)
+})
+
+test('fenced code blocks emit plain-literal triples on the current subject', () => {
+  const nt = triplify(`query :: keep parsing
+
+\`\`\`sparql
+SELECT * WHERE {
+  ?s ?p ?o .
+}
+\`\`\`
+  `)
+
+  assert.match(nt, /<urn:name:stdin> <urn:property:query> "keep parsing" \./)
+  assert.match(nt, /<urn:name:stdin> <urn:code-block:sparql> "SELECT \* WHERE \{\\n  \?s \?p \?o \.\\n\}" \./)
+})
+
+test('fenced code blocks attach to the active section subject', () => {
+  const nt = triplify(`## Queries
+
+\`\`\`sparql
+ASK {}
+\`\`\`
+`)
+
+  assert.match(nt, /<urn:name:stdin#Queries> <rdfs:label> "Queries" \./)
+  assert.match(nt, /<urn:name:stdin#Queries> <urn:code-block:sparql> "ASK \{\}" \./)
 })
 
 test('bullet list markers are ignored before parsing inline fields', () => {

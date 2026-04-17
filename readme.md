@@ -45,6 +45,24 @@ born :: 2024-03-15
 type :: schema:Person
 ```
 
+Code blocks with an info string are also preserved:
+
+````md
+## Queries
+
+```sparql
+SELECT * WHERE {
+  ?s ?p ?o .
+}
+```
+````
+
+That emits a section triple like:
+
+```nt
+<urn:name:stdin#Queries> <urn:code-block:sparql> "SELECT * WHERE {\n  ?s ?p ?o .\n}" .
+```
+
 ## Current rules
 
 - One Markdown document becomes one RDF subject.
@@ -67,7 +85,9 @@ type :: schema:Person
 - `rdfs:label` values always stay plain string literals.
 - Lines like `- property :: value` are accepted; list markers are ignored before field parsing.
 - Backticks keep values literal, but with the current syntax-only design they mainly help preserve commas or formatting.
-- Fenced code blocks are ignored while scanning `::` fields.
+- Fenced code blocks still suppress `::` field parsing inside the fence.
+- Fenced code blocks with an info string emit one triple on the current document or section subject.
+- The predicate for those triples is `urn:code-block:<language>`, and the object is the raw block content as a plain string literal.
 
 ## Optional filters
 
@@ -130,7 +150,6 @@ Recent measurement on the local workspace:
 - Selectors, offsets, and annotation metadata.
 - Document provenance and file-representation triples.
 - Canvas processing.
-- Code-block parsing as RDF.
 - Property mappings as a built-in stage.
 - Section-level `uri :: ...` overrides.
 - Full Markdown AST parsing.

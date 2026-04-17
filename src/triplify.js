@@ -76,6 +76,7 @@ export function createTriplifyProcessor(options = {}) {
   const { sourceId = 'stdin', onQuad = () => {}, mappings } = options
   const resolvedMappings = mappings ? { ...MAPPINGS, ...mappings } : MAPPINGS
   const resolvePredicate = (key) => predicateIri(key, resolvedMappings)
+  const codeBlockPredicate = language => rdf.namedNode(`urn:code-block:${encodeURIComponent(language)}`)
   const writeQuad = createQuadWriter(onQuad)
   const labeledSubjects = new Set()
   let subject = subjectIri({}, sourceId)
@@ -83,6 +84,8 @@ export function createTriplifyProcessor(options = {}) {
   let inFrontmatter = false
   let atDocumentStart = true
   let inCodeFence = false
+  let codeFenceLanguage = null
+  let codeFenceLines = []
   let currentH2 = null
   let currentH3 = null
 
@@ -153,13 +156,36 @@ export function createTriplifyProcessor(options = {}) {
     })
   }
 
+  function emitCodeBlock() {
+    if (!codeFenceLanguage) return
+
+    writeQuad(currentSubject(), codeBlockPredicate(codeFenceLanguage), codeFenceLines.join('\n'), {
+      plainObject: true
+    })
+  }
+
   function processBodyLine(line) {
-    if (line.trimStart().startsWith('```')) {
-      inCodeFence = !inCodeFence
+    const trimmedLine = line.trimStart()
+
+    if (trimmedLine.startsWith('```')) {
+      if (inCodeFence) {
+        emitCodeBlock()
+        inCodeFence = false
+        codeFenceLanguage = null
+        codeFenceLines = []
+        return
+      }
+
+      inCodeFence = true
+      codeFenceLanguage = trimmedLine.slice(3).trim().split(/\s+/, 1)[0] || null
+      codeFenceLines = []
       return
     }
 
-    if (inCodeFence) return
+    if (inCodeFence) {
+      codeFenceLines.push(line)
+      return
+    }
     if (handleHeading(line)) return
     handleField(line)
   }
