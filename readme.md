@@ -14,8 +14,6 @@ This repo strips `vault-triplifier` down to the subset I actually use:
 
 It deliberately avoids most of the heavier machinery from `vault-triplifier`.
 
-The goal is not full feature parity. The goal is a smaller tool that preserves the Markdown-to-RDF behavior that is actually used most often.
-
 ## Usage
 
 ```bash
@@ -97,39 +95,6 @@ Inside that pipeline:
 - `typed-literals` upgrades plain literals into booleans, numbers, and date/dateTime literals when they match the expected lexical forms.
 - serialization happens last, after the quad transforms.
 
-## Internal Pipeline
-
-For performance, the fast path inside Node is no longer "text all the way down".
-
-`triplify` builds RDFJS quads with `rdf-ext`, and the downstream stages can transform quads directly before serializing back to N-Triples.
-
-The important tradeoff is that pure quad streams are only composable in-process.
-
-Unix shell pipes move bytes, not JavaScript objects, so a fully quad-native pipeline is faster but less shell-composable.
-
-The current compromise is:
-
-- one text CLI remains at the boundary
-- the high-performance path uses quads internally
-
-See [docs/streaming-quads.md](/home/cvasquez/doing/simpler%20triplifier/docs/streaming-quads.md) for the rationale.
-
-## Benchmark
-
-The workspace benchmark excludes `.obsidian/` and `node_modules/` and reports both parser-only and full-pipeline throughput:
-
-```bash
-npm run bench:workspace -- ~/obsidian/workspace
-```
-
-Recent measurement on the local workspace:
-
-- `2881` markdown files
-- `3.916 MiB` input
-- `triplify`: about `89 ms`
-- in-process `mapping + typed-literals`: about `71 ms`
-- total in-process pipeline: about `160 ms`
-
 ## Included
 
 - Document-level triples from YAML frontmatter.
@@ -154,21 +119,6 @@ Recent measurement on the local workspace:
 - Section-level `uri :: ...` overrides.
 - Full Markdown AST parsing.
 
-## Comparison
-
-This repo includes a practical diff script to compare the smaller tool with the original implementation on real notes:
-
-```bash
-npm run compare -- --typed /path/to/note.md
-```
-
-The comparison is not a raw text diff of the full RDF output. It filters the larger graph down to the subset this repo is meant to preserve, then reports:
-
-- triples missing in the small tool
-- triples added by the small tool
-
-This is meant to support "close enough for the useful subset", not bit-for-bit equivalence.
-
 ## Development
 
 ```bash
@@ -176,12 +126,3 @@ npm test
 ```
 
 Note: `npm test` currently also runs the workspace benchmark because it lives under `test/`.
-
-## Intents
-
-- [[osg dot-triples core]]
-- [[osg dot-triples curie-expansion]]
-- [[osg dot-triples iri-conventions]]
-- [[osg dot-triples pipeline]]
-- [[osg dot-triples triplifier]]
-- [[osg dot-triples typed-literals]]
