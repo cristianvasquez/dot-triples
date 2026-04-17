@@ -1,8 +1,7 @@
 import { basename } from 'node:path'
 import rdf from 'rdf-ext'
+import { NAME_BASE, PROPERTY_BASE, nameToUri, propertyToUri } from './canonical.js'
 
-export const NAME_BASE = 'urn:name:'
-export const PROPERTY_BASE = 'urn:property:'
 const CURIE = /^[a-zA-Z][\w-]*:[^\s]+$/
 const ABSOLUTE_IRI = /^[a-zA-Z][a-zA-Z\d+.-]*:[^\s]*$/
 export const MAPPINGS = Object.freeze({
@@ -21,12 +20,20 @@ export function namedNodeFromValue(value, fallbackBase) {
   }
 
   if (stringValue.startsWith('[[') && stringValue.endsWith(']]')) {
-    return rdf.namedNode(`${NAME_BASE}${encodeURI(stringValue.slice(2, -2).trim())}`)
+    return nameToUri(stringValue.slice(2, -2).trim())
   }
 
   if (CURIE.test(stringValue)) return rdf.namedNode(stringValue)
 
   if (ABSOLUTE_IRI.test(stringValue)) return rdf.namedNode(stringValue)
+
+  if (fallbackBase === NAME_BASE) {
+    return nameToUri(stringValue)
+  }
+
+  if (fallbackBase === PROPERTY_BASE) {
+    return propertyToUri(stringValue)
+  }
 
   return rdf.namedNode(`${fallbackBase}${encodeURI(stringValue)}`)
 }
@@ -58,7 +65,7 @@ export function subjectIri(frontmatter, sourceId = 'stdin') {
     return namedNodeFromValue(frontmatter.uri, NAME_BASE)
   }
   const localName = basename(sourceId, '.md')
-  return rdf.namedNode(`${NAME_BASE}${encodeURI(localName)}`)
+  return nameToUri(localName)
 }
 
 export function predicateIri(key, mappings = MAPPINGS) {

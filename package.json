@@ -13,6 +13,7 @@
   },
   "exports": "./src/index.js",
   "dependencies": {
+    "@rdfjs/serializer-turtle": "^1.1.5",
     "rdf-ext": "^2.6.0"
   }
 }
