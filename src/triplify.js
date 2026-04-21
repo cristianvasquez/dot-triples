@@ -220,6 +220,11 @@ export function createTriplifyProcessor(options = {}) {
     },
 
     end() {
+      if (inCodeFence) {
+        const location = sourceId || 'stdin'
+        throw new Error(`Unclosed fenced code block in ${location}`)
+      }
+
       if (!inFrontmatter) return
 
       inFrontmatter = false
@@ -246,7 +251,7 @@ export function triplify(content, options = {}) {
   }
 
   processor.end()
-  return quads.map(quad => quad.toString()).join('\n')
+  return quads
 }
 
 export const internals = {

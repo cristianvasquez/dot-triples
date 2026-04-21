@@ -37,6 +37,7 @@ function formatRate(numerator, elapsedMs) {
 
 async function benchmarkWorkspace(root) {
   let fileCount = 0
+  let malformedFileCount = 0
   let inputBytes = 0
   let triplifyTripleCount = 0
   let pipelineTripleCount = 0
@@ -49,9 +50,17 @@ async function benchmarkWorkspace(root) {
     inputBytes += Buffer.byteLength(markdown, 'utf8')
 
     const triplifyStartedAt = performance.now()
-    const triplified = triplify(markdown, { sourceId: file })
-    triplifyElapsedMs += performance.now() - triplifyStartedAt
-    triplifyTripleCount += countLines(triplified)
+    try {
+      const triplified = triplify(markdown, { sourceId: file })
+      triplifyElapsedMs += performance.now() - triplifyStartedAt
+      triplifyTripleCount += triplified.length
+    } catch (error) {
+      triplifyElapsedMs += performance.now() - triplifyStartedAt
+      malformedFileCount += 1
+      console.error(`skip_malformed=${file}`)
+      console.error(`skip_reason=${error.message}`)
+      continue
+    }
 
     const pipelineStartedAt = performance.now()
     let typedCount = 0
@@ -78,6 +87,7 @@ async function benchmarkWorkspace(root) {
   return {
     root,
     fileCount,
+    malformedFileCount,
     inputBytes,
     inputMiB,
     triplifyTripleCount,
@@ -97,6 +107,7 @@ const result = await benchmarkWorkspace(root)
 
 console.log(`root=${result.root}`)
 console.log(`files=${result.fileCount}`)
+console.log(`malformed_files=${result.malformedFileCount}`)
 console.log(`input_bytes=${result.inputBytes}`)
 console.log(`input_mib=${result.inputMiB.toFixed(3)}`)
 console.log(`triplify_triples=${result.triplifyTripleCount}`)

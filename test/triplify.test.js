@@ -8,6 +8,7 @@ import { triplify, internals } from '../src/triplify.js'
 import { mapQuad } from '../src/curie-expansion.js'
 import { typeQuad } from '../src/typed-literals.js'
 import { createTriplifyQuadTransform, createCurieExpansionQuadTransform, createTypedLiteralsQuadTransform } from '../src/streams.js'
+import { serializeNTriplesStream } from '../src/serialize.js'
 import { MAPPINGS } from '../src/terms.js'
 import {
   fileURLToPath,
@@ -19,18 +20,28 @@ import {
 } from '../src/canonical.js'
 
 async function serializeQuadStream(stream) {
-  return rdf.io.stream.toText('application/n-triples', stream, { factory: rdf })
+  let output = ''
+
+  for await (const chunk of serializeNTriplesStream(stream)) {
+    output += chunk.toString()
+  }
+
+  return output
 }
 
-test('frontmatter becomes triples and uri overrides the subject', () => {
-  const nt = triplify(`---
+async function serializeQuads(quads) {
+  return serializeQuadStream(Readable.from(quads))
+}
+
+test('frontmatter becomes triples and uri overrides the subject', async () => {
+  const nt = await serializeQuads(triplify(`---
 uri: https://example.com/people/alice
 title: Alice
 tags: [person, staff]
 ---
 
 role :: Product Manager
-`)
+`))
 
   assert.match(nt, /^<https:\/\/example.com\/people\/alice> <rdfs:label> "Alice" \./m)
   assert.match(nt, /<https:\/\/example.com\/people\/alice> <urn:property:tags> "person" \./)
@@ -38,52 +49,65 @@ role :: Product Manager
   assert.match(nt, /<https:\/\/example.com\/people\/alice> <urn:property:role> "Product Manager" \./)
 })
 
-test('inline fields ignore fenced code blocks', () => {
-  const nt = triplify(`# Example
+test('inline fields ignore fenced code blocks', async () => {
+  const nt = await serializeQuads(triplify(`# Example
 
 \`\`\`md
 ignored :: value
 \`\`\`
 
 name :: Alice
-  `)
+  `))
 
   assert.match(nt, /<urn:name:stdin> <urn:property:name> "Alice" \./)
   assert.match(nt, /<urn:name:stdin> <urn:code-block:md> "ignored :: value" \./)
   assert.doesNotMatch(nt, /<urn:name:stdin> <urn:property:ignored> "value" \./)
 })
 
-test('fenced code blocks emit plain-literal triples on the current subject', () => {
-  const nt = triplify(`query :: keep parsing
+test('fenced code blocks emit plain-literal triples on the current subject', async () => {
+  const nt = await serializeQuads(triplify(`query :: keep parsing
 
 \`\`\`sparql
 SELECT * WHERE {
   ?s ?p ?o .
 }
 \`\`\`
-  `)
+  `))
 
   assert.match(nt, /<urn:name:stdin> <urn:property:query> "keep parsing" \./)
   assert.match(nt, /<urn:name:stdin> <urn:code-block:sparql> "SELECT \* WHERE \{\\n  \?s \?p \?o \.\\n\}" \./)
 })
 
-test('fenced code blocks attach to the active section subject', () => {
-  const nt = triplify(`## Queries
+test('triplify fails on unclosed fenced code blocks', () => {
+  assert.throws(
+    () => triplify(`## Queries
+
+\`\`\`sparql
+SELECT * WHERE {
+  ?s ?p ?o .
+}
+`),
+    /Unclosed fenced code block in stdin/
+  )
+})
+
+test('fenced code blocks attach to the active section subject', async () => {
+  const nt = await serializeQuads(triplify(`## Queries
 
 \`\`\`sparql
 ASK {}
 \`\`\`
-`)
+`))
 
   assert.match(nt, /<urn:name:stdin#Queries> <rdfs:label> "Queries" \./)
   assert.match(nt, /<urn:name:stdin#Queries> <urn:code-block:sparql> "ASK \{\}" \./)
 })
 
-test('bullet list markers are ignored before parsing inline fields', () => {
-  const nt = triplify(`- is a :: [[Researcher]]
+test('bullet list markers are ignored before parsing inline fields', async () => {
+  const nt = await serializeQuads(triplify(`- is a :: [[Researcher]]
 * knows :: [[Alice]]
 + role :: Engineer
-`)
+`))
 
   assert.match(nt, /<urn:name:stdin> <rdf:type> <urn:name:Researcher> \./)
   assert.match(nt, /<urn:name:stdin> <urn:property:knows> <urn:name:Alice> \./)
@@ -91,8 +115,8 @@ test('bullet list markers are ignored before parsing inline fields', () => {
   assert.doesNotMatch(nt, /urn:property:-%20is%20a/)
 })
 
-test('default heading partitioning uses big-tool heading subjects', () => {
-  const nt = triplify(`# Team
+test('default heading partitioning uses big-tool heading subjects', async () => {
+  const nt = await serializeQuads(triplify(`# Team
 owner :: Cristian
 
 ## Alice
@@ -103,7 +127,7 @@ expertise :: Research
 
 ## Bob
 role :: Developer
-`)
+`))
 
   assert.match(nt, /<urn:name:stdin> <urn:property:owner> "Cristian" \./)
   assert.match(nt, /<urn:name:stdin#Alice> <rdfs:label> "Alice" \./)
@@ -113,30 +137,30 @@ role :: Developer
   assert.match(nt, /<urn:name:stdin#Bob> <urn:property:role> "Developer" \./)
 })
 
-test('h1 does not create a separate entity in the default heading mode', () => {
-  const nt = triplify(`# Team
+test('h1 does not create a separate entity in the default heading mode', async () => {
+  const nt = await serializeQuads(triplify(`# Team
 role :: Document Role
-`)
+`))
 
   assert.match(nt, /<urn:name:stdin> <urn:property:role> "Document Role" \./)
   assert.doesNotMatch(nt, /<urn:name:stdin#Team>/)
 })
 
-test('heading labels stay plain literals even when the heading looks like a resource', () => {
-  const nt = triplify(`## [[Next steps]]
-`)
+test('heading labels stay plain literals even when the heading looks like a resource', async () => {
+  const nt = await serializeQuads(triplify(`## [[Next steps]]
+`))
 
   assert.match(nt, /<urn:name:stdin#%5B%5BNext%20steps%5D%5D> <rdfs:label> "\[\[Next steps\]\]" \./)
   assert.doesNotMatch(nt, /<urn:name:Next%20steps>/)
 })
 
-test('hash in heading text is percent-encoded so the section IRI stays valid', () => {
-  const nt = triplify(`## Subsection #person
+test('hash in heading text is percent-encoded so the section IRI stays valid', async () => {
+  const nt = await serializeQuads(triplify(`## Subsection #person
 property :: value
 
 ## [[Flow based programming#Rete.js]]
 other :: thing
-`)
+`))
 
   assert.match(nt, /<urn:name:stdin#Subsection%20%23person> <rdfs:label> "Subsection #person" \./)
   assert.match(nt, /<urn:name:stdin#Subsection%20%23person> <urn:property:property> "value" \./)
@@ -144,19 +168,19 @@ other :: thing
   assert.doesNotMatch(nt, /urn:name:stdin#[^>]*#/)
 })
 
-test('triplify leaves curies untouched until the mapping step', () => {
-  const nt = triplify(`born :: 2024-03-15
+test('triplify leaves curies untouched until the mapping step', async () => {
+  const nt = await serializeQuads(triplify(`born :: 2024-03-15
 knows :: [[Bob Smith]]
 type :: schema:Person
-`)
+`))
 
   assert.match(nt, /<urn:property:born> "2024-03-15" \./)
   assert.match(nt, /<urn:property:knows> <urn:name:Bob%20Smith> \./)
   assert.match(nt, /<rdf:type> <schema:Person> \./)
 })
 
-test('triplify preserves unknown curie-shaped values as named nodes', () => {
-  const nt = triplify('related :: ex:Thing\n')
+test('triplify preserves unknown curie-shaped values as named nodes', async () => {
+  const nt = await serializeQuads(triplify('related :: ex:Thing\n'))
 
   assert.match(nt, /<urn:property:related> <ex:Thing> \./)
   assert.doesNotMatch(nt, /<urn:name:ex:Thing>/)
@@ -169,10 +193,9 @@ test('mapping expands curies in any RDF term position', () => {
     rdf.namedNode('schema:Person')
   ))
 
-  assert.equal(
-    mapped.toString(),
-    '<https://schema.org/Alice> <https://schema.org/knows> <https://schema.org/Person> .'
-  )
+  assert.equal(mapped.subject.value, 'https://schema.org/Alice')
+  assert.equal(mapped.predicate.value, 'https://schema.org/knows')
+  assert.equal(mapped.object.value, 'https://schema.org/Person')
 })
 
 test('predicate aliases are read from mappings.json', () => {
@@ -235,11 +258,11 @@ tags:
   })
 })
 
-test('backticks preserve plain string values', () => {
-  const nt = triplify(`born :: \`2024-03-15\`
+test('backticks preserve plain string values', async () => {
+  const nt = await serializeQuads(triplify(`born :: \`2024-03-15\`
 count :: \`42\`
 flag :: \`true\`
-`)
+`))
 
   assert.match(nt, /<urn:property:born> "2024-03-15" \./)
   assert.match(nt, /<urn:property:count> "42" \./)
@@ -252,12 +275,12 @@ test('typed-literals upgrades plain literals in a later pipe', () => {
     typeQuad(rdf.quad(rdf.namedNode('urn:name:stdin'), rdf.namedNode('urn:property:count'), rdf.literal('42'))),
     typeQuad(rdf.quad(rdf.namedNode('urn:name:stdin'), rdf.namedNode('urn:property:flag'), rdf.literal('true'))),
     typeQuad(rdf.quad(rdf.namedNode('urn:name:stdin'), rdf.namedNode('urn:property:name'), rdf.literal('Alice')))
-  ].map(quad => quad.toString()).join('\n')
+  ]
 
-  assert.match(typed, /<urn:property:born> "2024-03-15"\^\^<http:\/\/www\.w3\.org\/2001\/XMLSchema#date> \./)
-  assert.match(typed, /<urn:property:count> "42"\^\^<http:\/\/www\.w3\.org\/2001\/XMLSchema#integer> \./)
-  assert.match(typed, /<urn:property:flag> "true"\^\^<http:\/\/www\.w3\.org\/2001\/XMLSchema#boolean> \./)
-  assert.match(typed, /<urn:property:name> "Alice" \./)
+  assert.equal(typed[0].object.datatype.value, 'http://www.w3.org/2001/XMLSchema#date')
+  assert.equal(typed[1].object.datatype.value, 'http://www.w3.org/2001/XMLSchema#integer')
+  assert.equal(typed[2].object.datatype.value, 'http://www.w3.org/2001/XMLSchema#boolean')
+  assert.equal(typed[3].object.datatype.value, 'http://www.w3.org/2001/XMLSchema#string')
 })
 
 test('mapping upgrades triplify output before typed-literals', async () => {
@@ -294,7 +317,7 @@ test('triplify transform handles chunked input incrementally', async () => {
     quads.push(quad)
   }
 
-  const output = quads.map(quad => quad.toString()).join('\n')
+  const output = await serializeQuads(quads)
 
   assert.match(output, /^<urn:name:alice> <rdfs:label> "Alice" \./m)
   assert.match(output, /<urn:name:alice#Team> <urn:property:role> "Lead" \./)
@@ -357,4 +380,24 @@ test('cli runs the full pipeline before serialization', () => {
 
   assert.match(stdout, /<http:\/\/www\.w3\.org\/1999\/02\/22-rdf-syntax-ns#type> <https:\/\/schema\.org\/Person> \./)
   assert.match(stdout, /<urn:property:born> "2024-03-15"\^\^<http:\/\/www\.w3\.org\/2001\/XMLSchema#date> \./)
+})
+
+test('cli fails with a clear error on unclosed fenced code blocks', () => {
+  assert.throws(
+    () => execFileSync(
+      process.execPath,
+      ['src/cli.js', 'broken.md'],
+      {
+        cwd: process.cwd(),
+        input: '```bash\necho hi\n',
+        encoding: 'utf8',
+        stdio: ['pipe', 'pipe', 'pipe']
+      }
+    ),
+    error => {
+      assert.equal(error.status, 1)
+      assert.match(error.stderr, /Unclosed fenced code block in broken\.md/)
+      return true
+    }
+  )
 })

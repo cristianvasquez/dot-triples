@@ -1,4 +1,4 @@
-import { createTriplifyProcessor } from './triplify.js'
+import { triplify } from './triplify.js'
 import { mapQuad, PREFIXES } from './curie-expansion.js'
 import { typeQuad } from './typed-literals.js'
 export {
@@ -18,18 +18,5 @@ export function canProcess(absolutePath) {
 }
 
 export function triplifyToQuads(content, options = {}) {
-  const quads = []
-  const processor = createTriplifyProcessor({
-    ...options,
-    onQuad(quad) {
-      quads.push(typeQuad(mapQuad(quad)))
-    }
-  })
-
-  for (const line of String(content).split('\n')) {
-    processor.writeLine(line)
-  }
-
-  processor.end()
-  return quads
+  return triplify(content, options).map(quad => typeQuad(mapQuad(quad)))
 }
