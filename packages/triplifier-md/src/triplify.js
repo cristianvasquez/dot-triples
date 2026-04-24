@@ -68,6 +68,8 @@ export function createTriplifyProcessor(options = {}) {
   let codeFenceLines = []
   let firstH1Seen = false
   let currentSectionNode = null
+  let currentSectionTitle = null
+  let currentSectionMaterialized = false
 
   function currentSubject() {
     if (currentSectionNode) return currentSectionNode
@@ -94,6 +96,13 @@ export function createTriplifyProcessor(options = {}) {
     labeledConcepts.add(subject.value)
   }
 
+  function ensureCurrentSectionMaterialized() {
+    if (!currentSectionNode || currentSectionMaterialized) return
+    materializeConceptByName(`${localTopConceptName}#${currentSectionTitle}`)
+    emitLabelIfNeeded(currentSectionNode, currentSectionTitle)
+    currentSectionMaterialized = true
+  }
+
   function emitFrontmatter(frontmatter) {
     for (const [key, value] of Object.entries(frontmatter)) {
       writeQuad(localDocumentNode, predicateNode(key), value)
@@ -117,6 +126,8 @@ export function createTriplifyProcessor(options = {}) {
 
     if (depth === 1) {
       currentSectionNode = null
+      currentSectionTitle = null
+      currentSectionMaterialized = false
 
       if (!firstH1Seen) {
         firstH1Seen = true
@@ -129,8 +140,8 @@ export function createTriplifyProcessor(options = {}) {
 
     const sectionNode = sectionConceptNode(options, title)
     currentSectionNode = sectionNode
-    materializeConceptByName(`${localTopConceptName}#${title}`)
-    emitLabelIfNeeded(sectionNode, title)
+    currentSectionTitle = title
+    currentSectionMaterialized = false
     return true
   }
 
@@ -142,6 +153,7 @@ export function createTriplifyProcessor(options = {}) {
     const [, key, rawValue] = match
     const trimmedKey = key.trim()
     const parsedValue = parseFieldValue(rawValue)
+    ensureCurrentSectionMaterialized()
     writeQuad(currentSubject(), predicateNode(trimmedKey), parsedValue)
 
     const conceptName = wikiConceptName(parsedValue)
@@ -160,6 +172,7 @@ export function createTriplifyProcessor(options = {}) {
       if (!label || !uri || !isAbsoluteIri(uri)) continue
 
       matched = true
+      ensureCurrentSectionMaterialized()
       const target = urlNode(uri)
       writeQuad(currentSubject(), UNTYPED_TOKEN, target)
 
@@ -174,6 +187,7 @@ export function createTriplifyProcessor(options = {}) {
 
   function emitCodeBlock() {
     if (!codeFenceLanguage) return
+    ensureCurrentSectionMaterialized()
     writeQuad(currentSubject(), rdf.namedNode(`urn:code-block:${encodeURIComponent(codeFenceLanguage)}`), codeFenceLines.join('\n'), {
       plainObject: true
     })

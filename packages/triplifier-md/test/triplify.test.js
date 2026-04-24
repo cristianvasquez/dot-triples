@@ -82,6 +82,23 @@ uses :: [sparql]
   assert.match(nt, /<urn:name:Alice%23Skills> <urn:token:uses> <urn:token:sparql> \./)
 })
 
+test('empty section headings stay in outline but do not materialize concept nodes', async () => {
+  const nt = await serializeQuads(triplify(`# Alice
+
+## Empty
+
+## Filled
+role :: Lead
+`, { name: 'Alice', file: 'Alice.md' }))
+
+  assert.match(nt, /<urn:name:Alice\.md> <urn:token:outline> "\* Alice\\n\t\* Empty\\n\t\* Filled" \./)
+  assert.doesNotMatch(nt, /<urn:name:Alice\.md> <urn:token:about> <urn:name:Alice%23Empty> \./)
+  assert.doesNotMatch(nt, /<urn:name:Alice%23Empty> <rdfs:label> "Empty" \./)
+  assert.match(nt, /<urn:name:Alice\.md> <urn:token:about> <urn:name:Alice%23Filled> \./)
+  assert.match(nt, /<urn:name:Alice%23Filled> <rdfs:label> "Filled" \./)
+  assert.match(nt, /<urn:name:Alice%23Filled> <urn:token:role> "Lead" \./)
+})
+
 test('wiki links materialize foreign concepts on their owning document nodes', async () => {
   const nt = await serializeQuads(triplify(`# Alice
 
