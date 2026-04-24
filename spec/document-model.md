@@ -17,13 +17,20 @@ These are distinct nodes in the graph with distinct IRIs.
 
 ## Document node
 
-The document node represents the file as a document. Its IRI is always derived from the filename:
+Triplification takes:
+
+- `name`: the canonical note identity
+- `file`: optional source filename or path
+
+If both are given, `name` wins. If `name` is absent and `file` is given, `name` is derived as `basename(file, '.md')`.
+
+The document node represents the file as a document. Its IRI is always derived from `name`:
 
 ```text
-nameToURI(basename(filename))
+nameToURI(name + '.md')
 ```
 
-`Alice.md` → `urn:name:Alice.md`
+`name = 'Alice'` → `urn:name:Alice.md`
 
 ### What goes on the document node
 
@@ -50,19 +57,19 @@ Each heading becomes a `*` bullet. Indentation uses tabs: H1 gets no indent, H2 
 
 ## Top concept node
 
-One per document. Its IRI is always derived from the filename:
+One per document. Its IRI is always derived from `name`:
 
 ```
-nameToURI(basename(filename, '.md'))
+nameToURI(name)
 ```
 
-`Alice.md` → `urn:name:Alice`
+`name = 'Alice'` → `urn:name:Alice`
 
 Case is preserved exactly. `[[Alice]]` in any other file must use the same casing to resolve to the same IRI.
 
 ### H1 materializes the top concept
 
-The first `#` heading does not create a new concept node. It materializes the top concept already implied by the filename and sets `rdfs:label` from the heading text:
+The first `#` heading does not create a new concept node. It materializes the top concept already implied by `name` and sets `rdfs:label` from the heading text:
 
 ```markdown
 # Alice Smith
@@ -93,7 +100,7 @@ urn:name:Alice  urn:token:role  "Product Manager"
 All headings at depth H2 through H6 create section concept nodes. The IRI is flat regardless of heading depth:
 
 ```
-nameToURI(basename(filename, '.md') + '#' + headingText)
+nameToURI(name + '#' + headingText)
 ```
 
 `## Skills` in `Alice.md`:

@@ -51,7 +51,7 @@ async function benchmarkWorkspace(root) {
 
     const triplifyStartedAt = performance.now()
     try {
-      const triplified = triplify(markdown, { sourceId: file })
+      const triplified = triplify(markdown, { file })
       triplifyElapsedMs += performance.now() - triplifyStartedAt
       triplifyTripleCount += triplified.length
     } catch (error) {
@@ -65,7 +65,7 @@ async function benchmarkWorkspace(root) {
     const pipelineStartedAt = performance.now()
     let typedCount = 0
     const processor = triplifyInternals.createTriplifyProcessor({
-      sourceId: file,
+      file,
       onQuad(quad) {
         typeQuad(mapQuad(quad))
         typedCount += 1

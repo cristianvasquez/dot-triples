@@ -5,25 +5,37 @@ import { UNTYPED_TOKEN, nameToURI, tokenToURI } from 'canonical-md'
 const CURIE = /^[a-zA-Z][\w-]*:[^\s]+$/
 const ABSOLUTE_IRI = /^[a-zA-Z][a-zA-Z\d+.-]*:[^\s]*$/
 
-export function documentName(sourceId = 'stdin.md') {
-  return basename(sourceId || 'stdin.md')
+export function resolveName(options = {}) {
+  const explicitName = String(options.name ?? '').trim()
+  if (explicitName) return explicitName
+
+  const file = String(options.file ?? options.sourceId ?? '').trim()
+  if (!file) {
+    throw new Error('triplify requires a name or file')
+  }
+
+  const base = basename(file)
+  return base.endsWith('.md') ? base.slice(0, -3) : base
 }
 
-export function topConceptName(sourceId = 'stdin.md') {
-  const name = documentName(sourceId)
-  return name.endsWith('.md') ? name.slice(0, -3) : name
+export function documentName(options = {}) {
+  return `${resolveName(options)}.md`
 }
 
-export function documentNode(sourceId = 'stdin.md') {
-  return nameToURI(documentName(sourceId))
+export function topConceptName(options = {}) {
+  return resolveName(options)
 }
 
-export function topConceptNode(sourceId = 'stdin.md') {
-  return nameToURI(topConceptName(sourceId))
+export function documentNode(options = {}) {
+  return nameToURI(documentName(options))
 }
 
-export function sectionConceptNode(sourceId, headingText) {
-  return nameToURI(`${topConceptName(sourceId)}#${headingText}`)
+export function topConceptNode(options = {}) {
+  return nameToURI(topConceptName(options))
+}
+
+export function sectionConceptNode(options, headingText) {
+  return nameToURI(`${topConceptName(options)}#${headingText}`)
 }
 
 export function owningDocumentNodeForConceptName(conceptName) {

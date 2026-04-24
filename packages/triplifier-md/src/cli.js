@@ -1,17 +1,15 @@
 #!/usr/bin/env node
 import { pipeline } from 'node:stream/promises'
-import { basename } from 'node:path'
 import { stdin, stdout, stderr, argv } from 'node:process'
 import { createTriplifyQuadTransform, createCurieExpansionQuadTransform, createTypedLiteralsQuadTransform } from './streams.js'
 import { serializeNTriplesStream } from './serialize.js'
 
 try {
   const args = argv.slice(2)
-  const sourceFile = args.find(a => !a.startsWith('-'))
-  const sourceId = sourceFile ? basename(sourceFile) : 'stdin'
+  const file = args.find(a => !a.startsWith('-'))
 
   const quadStream = stdin
-    .pipe(createTriplifyQuadTransform({ sourceId }))
+    .pipe(createTriplifyQuadTransform({ file }))
     .pipe(createCurieExpansionQuadTransform())
     .pipe(createTypedLiteralsQuadTransform())
 

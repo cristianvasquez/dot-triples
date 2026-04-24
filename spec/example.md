@@ -9,8 +9,11 @@ This document pressure-tests the model in [document-model](./document-model.md) 
 
 The rule is:
 
-- document node = `nameToURI(basename(filename))`
-- top concept node = `nameToURI(basename(filename, '.md'))`
+- triplification input = `name`, optionally `file`
+- if both are present, `name` wins
+- if `name` is absent and `file` is present, derive `name = basename(file, '.md')`
+- document node = `nameToURI(name + '.md')`
+- top concept node = `nameToURI(name)`
 - H1, if present, materializes that top concept and gives it an `rdfs:label` from the heading text
 
 ## Example 1: two documents with headings

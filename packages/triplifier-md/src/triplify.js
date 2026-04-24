@@ -49,11 +49,11 @@ function parseFieldValue(value) {
 }
 
 export function createTriplifyProcessor(options = {}) {
-  const { sourceId = 'stdin.md', onQuad = () => {} } = options
+  const { onQuad = () => {} } = options
   const writeQuad = createQuadWriter(onQuad)
-  const localDocumentNode = documentNode(sourceId)
-  const localTopConceptNode = topConceptNode(sourceId)
-  const localTopConceptName = topConceptName(sourceId)
+  const localDocumentNode = documentNode(options)
+  const localTopConceptNode = topConceptNode(options)
+  const localTopConceptName = topConceptName(options)
 
   const materializedConcepts = new Set()
   const labeledConcepts = new Set()
@@ -127,7 +127,7 @@ export function createTriplifyProcessor(options = {}) {
       return true
     }
 
-    const sectionNode = sectionConceptNode(sourceId, title)
+    const sectionNode = sectionConceptNode(options, title)
     currentSectionNode = sectionNode
     materializeConceptByName(`${localTopConceptName}#${title}`)
     emitLabelIfNeeded(sectionNode, title)
@@ -245,7 +245,7 @@ export function createTriplifyProcessor(options = {}) {
 
     end() {
       if (inCodeFence) {
-        const location = sourceId || 'stdin.md'
+        const location = options.file || options.sourceId || options.name || 'markdown input'
         throw new Error(`Unclosed fenced code block in ${location}`)
       }
 

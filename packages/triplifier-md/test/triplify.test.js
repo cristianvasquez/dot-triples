@@ -31,7 +31,7 @@ status: active
 # Alice Smith
 
 role :: Product Manager
-`, { sourceId: 'Alice.md' }))
+`, { name: 'Alice', file: 'Alice.md' }))
 
   assert.match(nt, /<urn:name:Alice\.md> <urn:token:kind> "person" \./)
   assert.match(nt, /<urn:name:Alice\.md> <urn:token:status> "active" \./)
@@ -47,11 +47,23 @@ status :: draft
 
 # Project Atlas
 maintainer :: [[Bob]]
-`, { sourceId: 'Project.md' }))
+`, { name: 'Project', file: 'Project.md' }))
 
   assert.match(nt, /<urn:name:Project\.md> <urn:token:owner> <urn:name:Alice> \./)
   assert.match(nt, /<urn:name:Project\.md> <urn:token:status> "draft" \./)
   assert.match(nt, /<urn:name:Project> <urn:token:maintainer> <urn:name:Bob> \./)
+})
+
+test('explicit name takes precedence over file-derived identity', async () => {
+  const nt = await serializeQuads(triplify(`# Alice Smith
+role :: Product Manager
+`, { name: 'Person', file: 'Alice.md' }))
+
+  assert.match(nt, /<urn:name:Person\.md> <urn:token:about> <urn:name:Person> \./)
+  assert.match(nt, /<urn:name:Person> <rdfs:label> "Alice Smith" \./)
+  assert.match(nt, /<urn:name:Person> <urn:token:role> "Product Manager" \./)
+  assert.doesNotMatch(nt, /<urn:name:Alice\.md>/)
+  assert.doesNotMatch(nt, /<urn:name:Alice> <rdfs:label>/)
 })
 
 test('section headings materialize flat section concepts and attach fields there', async () => {
@@ -62,7 +74,7 @@ expertise :: Python
 
 ### Skills
 uses :: [sparql]
-`, { sourceId: 'Alice.md' }))
+`, { name: 'Alice', file: 'Alice.md' }))
 
   assert.match(nt, /<urn:name:Alice\.md> <urn:token:about> <urn:name:Alice%23Skills> \./)
   assert.match(nt, /<urn:name:Alice%23Skills> <rdfs:label> "Skills" \./)
@@ -75,7 +87,7 @@ test('wiki links materialize foreign concepts on their owning document nodes', a
 
 knows :: [[Bob]]
 related :: [[Bob#Some Section]]
-`, { sourceId: 'Alice.md' }))
+`, { name: 'Alice', file: 'Alice.md' }))
 
   assert.match(nt, /<urn:name:Alice> <urn:token:knows> <urn:name:Bob> \./)
   assert.match(nt, /<urn:name:Alice> <urn:token:related> <urn:name:Bob%23Some%20Section> \./)
@@ -88,7 +100,7 @@ test('markdown links in prose attach to the current subject and label the url no
 
 ## Links
 See [the spec](https://example.com/spec) for details.
-`, { sourceId: 'Alice.md' }))
+`, { name: 'Alice', file: 'Alice.md' }))
 
   assert.match(nt, /<urn:name:Alice%23Links> <urn:token:_> <https:\/\/example\.com\/spec> \./)
   assert.match(nt, /<https:\/\/example\.com\/spec> <rdfs:label> "the spec" \./)
@@ -102,7 +114,7 @@ ignored :: value
 \`\`\`
 
 name :: Alice
-`, { sourceId: 'Example.md' }))
+`, { name: 'Example', file: 'Example.md' }))
 
   assert.match(nt, /<urn:name:Example> <urn:token:name> "Alice" \./)
   assert.match(nt, /<urn:name:Example> <urn:code-block:md> "ignored :: value" \./)
@@ -117,7 +129,7 @@ test('triplify fails on unclosed fenced code blocks', () => {
 SELECT * WHERE {
   ?s ?p ?o .
 }
-`, { sourceId: 'Example.md' }),
+`, { name: 'Example', file: 'Example.md' }),
     /Unclosed fenced code block in Example\.md/
   )
 })
@@ -140,7 +152,7 @@ test('backticks preserve plain string values', async () => {
 born :: \`2024-03-15\`
 count :: \`42\`
 flag :: \`true\`
-`, { sourceId: 'Alice.md' }))
+`, { name: 'Alice', file: 'Alice.md' }))
 
   assert.match(nt, /<urn:name:Alice> <urn:token:born> "2024-03-15" \./)
   assert.match(nt, /<urn:name:Alice> <urn:token:count> "42" \./)
@@ -177,7 +189,7 @@ test('mapping upgrades triplify output before typed-literals', async () => {
   const typed = await serializeQuadStream(
     Readable
       .from(['# Alice\ntype :: schema:Person\nborn :: 2024-03-15\n'])
-      .pipe(createTriplifyQuadTransform({ sourceId: 'Alice.md' }))
+      .pipe(createTriplifyQuadTransform({ name: 'Alice', file: 'Alice.md' }))
       .pipe(createCurieExpansionQuadTransform())
       .pipe(createTypedLiteralsQuadTransform())
   )
@@ -203,7 +215,7 @@ test('triplify transform handles chunked input incrementally', async () => {
 
   for await (const quad of Readable
     .from(['---\nkind: per', 'son\n---\n\n# Alice\n## Team\nrole :: Lead\n'])
-    .pipe(createTriplifyQuadTransform({ sourceId: 'Alice.md' }))) {
+    .pipe(createTriplifyQuadTransform({ name: 'Alice', file: 'Alice.md' }))) {
     quads.push(quad)
   }
 
