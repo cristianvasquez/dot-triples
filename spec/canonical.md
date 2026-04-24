@@ -119,3 +119,14 @@ Stress-test characters for generators: `#`, `?`, `&`, `=`, `/`, `%`, `:`, unicod
 ## What is not here
 
 File path utilities (`pathToFileURL`, `fileURLToPath`) remain in the module for now. They serve provenance triples that record which file a triple came from, distinct from the concept the file represents. This will be revisited separately.
+
+`getNameFromPath(filePath)` also lives here. It is the shared rule for deriving a canonical note name from a file path:
+
+- `/some-path/bob.md` → `'bob'`
+- `notes/Alice.md` → `'Alice'`
+- only a trailing `.md` suffix is removed
+
+`getDocName(name)` is the inverse string-level rule for canonical document names:
+
+- `'bob'` → `'bob.md'`
+- `'Alice'` → `'Alice.md'`

@@ -1,6 +1,5 @@
-import { basename } from 'node:path'
 import rdf from 'rdf-ext'
-import { UNTYPED_TOKEN, nameToURI, tokenToURI } from 'canonical-md'
+import { UNTYPED_TOKEN, getDocName, getNameFromPath, nameToURI, tokenToURI } from 'canonical-md'
 
 const CURIE = /^[a-zA-Z][\w-]*:[^\s]+$/
 const ABSOLUTE_IRI = /^[a-zA-Z][a-zA-Z\d+.-]*:[^\s]*$/
@@ -14,12 +13,11 @@ export function resolveName(options = {}) {
     throw new Error('triplify requires a name or file')
   }
 
-  const base = basename(file)
-  return base.endsWith('.md') ? base.slice(0, -3) : base
+  return getNameFromPath(file)
 }
 
 export function documentName(options = {}) {
-  return `${resolveName(options)}.md`
+  return getDocName(resolveName(options))
 }
 
 export function topConceptName(options = {}) {
@@ -40,7 +38,7 @@ export function sectionConceptNode(options, headingText) {
 
 export function owningDocumentNodeForConceptName(conceptName) {
   const ownerName = conceptName.split('#', 1)[0]
-  return nameToURI(`${ownerName}.md`)
+  return nameToURI(getDocName(ownerName))
 }
 
 export function predicateNode(key) {

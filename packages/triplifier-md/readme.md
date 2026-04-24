@@ -46,13 +46,15 @@ type :: schema:Person
 
 ## Behavior
 
-- One Markdown document becomes one RDF subject.
-- `frontmatter.uri` overrides the subject IRI.
-- `##` and `###` headings create section subjects.
-- Properties before the first `##` stay on the document subject.
-- Properties inside `##` or `###` sections attach to that section subject.
+- A Markdown file produces a document node and concept nodes.
+- If `name` is absent and `file` is present, the canonical note name is derived via `getNameFromPath(file)` from `canonical-md`.
+- The document node is `urn:name:<name>.md`.
+- The top concept node is `urn:name:<name>`.
+- `##` and deeper headings materialize section concept nodes like `urn:name:<name>%23Section`.
+- Properties before the first section heading attach to the document node until the first `#` heading materializes the top concept.
+- Properties inside sections attach to that section concept.
 - `[[Wiki Links]]` become `urn:name:` IRIs.
-- Default predicates use `urn:property:`.
+- Default predicates use `urn:token:`.
 - Known CURIEs are preserved during parsing and expanded later.
 - `label` and `title` stay plain string literals.
 - Fenced code blocks suppress field parsing and emit `urn:code-block:<language>` triples.

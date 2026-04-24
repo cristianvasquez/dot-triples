@@ -22,7 +22,7 @@ Triplification takes:
 - `name`: the canonical note identity
 - `file`: optional source filename or path
 
-If both are given, `name` wins. If `name` is absent and `file` is given, `name` is derived as `basename(file, '.md')`.
+If both are given, `name` wins. If `name` is absent and `file` is given, `name` is derived with `getNameFromPath(file)`.
 
 The document node represents the file as a document. Its IRI is always derived from `name`:
 

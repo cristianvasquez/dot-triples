@@ -11,7 +11,7 @@ The rule is:
 
 - triplification input = `name`, optionally `file`
 - if both are present, `name` wins
-- if `name` is absent and `file` is present, derive `name = basename(file, '.md')`
+- if `name` is absent and `file` is present, derive `name = getNameFromPath(file)`
 - document node = `nameToURI(name + '.md')`
 - top concept node = `nameToURI(name)`
 - H1, if present, materializes that top concept and gives it an `rdfs:label` from the heading text

@@ -14,22 +14,26 @@ repo-group: rdf
 
 This package exports:
 
-- `nameToUri`
-- `nameFromUri`
-- `propertyToUri`
-- `propertyFromUri`
+- `nameToURI`
+- `nameFromURI`
+- `tokenToURI`
+- `tokenFromURI`
+- `tokenToLiteral`
+- `UNTYPED_TOKEN`
+- `getNameFromPath`
+- `getDocName`
 - `pathToFileURL`
 - `fileURLToPath`
-- `NAME_BASE`
-- `PROPERTY_BASE`
 
 ## Example
 
 ```js
-import { nameToUri, propertyToUri, pathToFileURL } from 'canonical-md'
+import { getDocName, getNameFromPath, nameToURI, pathToFileURL, tokenToURI } from 'canonical-md'
 
-nameToUri('Alice Smith')
-propertyToUri('has name')
+nameToURI('Alice Smith')
+tokenToURI('has name')
+getNameFromPath('/tmp/note.md')
+getDocName('Alice Smith')
 pathToFileURL('/tmp/note.md')
 ```
 

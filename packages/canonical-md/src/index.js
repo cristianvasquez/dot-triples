@@ -50,6 +50,19 @@ export function tokenToLiteral(s) {
   return rdf.literal(String(s))
 }
 
+export function getNameFromPath(filePath) {
+  const fileName = String(filePath).split(/[\\/]/).pop() ?? ''
+  return fileName.replace(/\.md$/i, '')
+}
+
+export function getDocName(name) {
+  if (name == null || name === '') {
+    throw new Error('Name must not be null, undefined, or empty')
+  }
+  assertTrimmed(name)
+  return `${name}.md`
+}
+
 function pathToFileURL(filepath) {
   if (!filepath.startsWith('/') && !filepath.match(/^[A-Za-z]:/)) {
     filepath = '/' + filepath

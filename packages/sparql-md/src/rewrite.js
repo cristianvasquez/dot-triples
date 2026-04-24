@@ -1,4 +1,5 @@
 import {
+  getNameFromPath,
   nameToURI,
   pathToFileURL,
   tokenToURI,
@@ -13,11 +14,6 @@ function assertRequiredContext(processed, token, value, message) {
   if (processed.includes(token) && !value) {
     throw new Error(message)
   }
-}
-
-function getNameFromPath(filePath) {
-  const fileName = String(filePath).split(/[\\/]/).pop() ?? ''
-  return fileName.replace(/\.[^.]+$/, '')
 }
 
 export function replaceInternalLinks(text, replacer) {

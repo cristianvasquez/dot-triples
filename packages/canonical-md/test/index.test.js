@@ -5,6 +5,8 @@ import rdf from 'rdf-ext'
 import {
   UNTYPED_TOKEN,
   fileURLToPath,
+  getDocName,
+  getNameFromPath,
   nameFromURI,
   nameToURI,
   pathToFileURL,
@@ -107,6 +109,21 @@ test('tokenToLiteral produces a Literal', () => {
 
 test('tokenToLiteral throws on untrimmed input', () => {
   assert.throws(() => tokenToLiteral('  part of'))
+})
+
+test('getNameFromPath derives note names from markdown file paths', () => {
+  assert.equal(getNameFromPath('/some-path/bob.md'), 'bob')
+  assert.equal(getNameFromPath('notes/Bob.md'), 'Bob')
+  assert.equal(getNameFromPath('C:/Users/Alice/My Note.md'), 'My Note')
+  assert.equal(getNameFromPath('/some-path/no-extension'), 'no-extension')
+  assert.equal(getNameFromPath('/some-path/archive.tar.gz'), 'archive.tar.gz')
+})
+
+test('getDocName derives canonical document names from note names', () => {
+  assert.equal(getDocName('bob'), 'bob.md')
+  assert.equal(getDocName('Alice Smith'), 'Alice Smith.md')
+  assert.throws(() => getDocName(null))
+  assert.throws(() => getDocName(' Alice '))
 })
 
 test('file URL helpers encode and decode paths', () => {
