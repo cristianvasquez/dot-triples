@@ -1,7 +1,7 @@
 import {
-  nameToUri,
+  nameToURI,
   pathToFileURL,
-  propertyToUri,
+  tokenToURI,
 } from 'canonical-md'
 import { Parser } from 'sparqljs'
 
@@ -28,8 +28,8 @@ export function replaceInternalLinks(text, replacer) {
 
 export function replacePropertyPlaceholders(text) {
   return text.replace(/__([a-zA-Z][a-zA-Z0-9_\s:]*?)__/g, (match, property) => {
-    const propUri = propertyToUri(property.trim())
-    return `<${propUri}>`
+    const propUri = tokenToURI(property.trim())
+    return `<${propUri.value}>`
   })
 }
 
@@ -59,7 +59,7 @@ export function rewriteQuery(text, context = {}) {
 
   if (processed.includes(THIS)) {
     const name = getNameFromPath(context.filePath)
-    processed = processed.replaceAll(THIS, `<${nameToUri(name)}>`)
+    processed = processed.replaceAll(THIS, `<${nameToURI(name).value}>`)
   }
 
   if (processed.includes(DOC)) {
@@ -73,7 +73,7 @@ export function rewriteQuery(text, context = {}) {
 
   processed = replacePropertyPlaceholders(processed)
   processed = replaceInternalLinks(processed, (linkText) => {
-    return `<${nameToUri(linkText.trim())}>`
+    return `<${nameToURI(linkText.trim()).value}>`
   })
 
   return processed

@@ -12,29 +12,29 @@ import {
 test('replacePropertyPlaceholders replaces simple properties', () => {
   const input = 'SELECT * WHERE { ?s __label__ ?o }'
   const result = replacePropertyPlaceholders(input)
-  assert.match(result, /<urn:property:label>/)
+  assert.match(result, /<urn:token:label>/)
   assert.doesNotMatch(result, /__label__/)
 })
 
 test('replacePropertyPlaceholders replaces properties with spaces', () => {
   const input = 'SELECT * WHERE { ?s __generated at time__ ?o }'
   const result = replacePropertyPlaceholders(input)
-  assert.match(result, /<urn:property:generated%20at%20time>/)
+  assert.match(result, /<urn:token:generated%20at%20time>/)
   assert.doesNotMatch(result, /__generated at time__/)
 })
 
 test('replacePropertyPlaceholders replaces prefixed properties', () => {
   const input = 'SELECT * WHERE { ?s __rdfs:label__ ?o }'
   const result = replacePropertyPlaceholders(input)
-  assert.match(result, /<urn:property:rdfs:label>/)
+  assert.match(result, /<urn:token:rdfs%3Alabel>/)
   assert.doesNotMatch(result, /__rdfs:label__/)
 })
 
 test('replacePropertyPlaceholders handles multiple placeholders', () => {
   const input = '?s __type__ ?type . ?s __label__ ?name'
   const result = replacePropertyPlaceholders(input)
-  assert.match(result, /<urn:property:type>/)
-  assert.match(result, /<urn:property:label>/)
+  assert.match(result, /<urn:token:type>/)
+  assert.match(result, /<urn:token:label>/)
 })
 
 test('replacePropertyPlaceholders leaves normal text unchanged', () => {
@@ -64,7 +64,7 @@ test('rewriteQuery replaces multiple token types', () => {
   })
 
   assert.match(result, /<urn:name:TestFile>/)
-  assert.match(result, /<urn:property:label>/)
+  assert.match(result, /<urn:token:label>/)
   assert.match(result, /<urn:name:LinkedNote>/)
 })
 
@@ -110,7 +110,7 @@ test('replaceAllTokens handles combined replacements', () => {
 
   assert.match(result, /<file:\/\/\/path\/to\/TestFile\.md>/)
   assert.match(result, /<urn:name:TestFile>/)
-  assert.match(result, /<urn:property:label>/)
+  assert.match(result, /<urn:token:label>/)
   assert.match(result, /<urn:name:LinkedNote>/)
 })
 
@@ -120,8 +120,8 @@ test('replaceAllTokens handles prefixed properties in SPARQL', () => {
     filePath: '/path/to/file.md',
   })
 
-  assert.match(result, /<urn:property:rdfs:label>/)
-  assert.match(result, /<urn:property:owl:sameAs>/)
+  assert.match(result, /<urn:token:rdfs%3Alabel>/)
+  assert.match(result, /<urn:token:owl%3AsameAs>/)
 })
 
 test('replaceAllTokens works without file path', () => {
@@ -129,7 +129,7 @@ test('replaceAllTokens works without file path', () => {
   const result = replaceAllTokens(sparql, {})
 
   assert.match(result, /<urn:name:MyNote>/)
-  assert.match(result, /<urn:property:label>/)
+  assert.match(result, /<urn:token:label>/)
   assert.doesNotMatch(result, /__THIS__/)
   assert.doesNotMatch(result, /__DOC__/)
 })

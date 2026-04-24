@@ -15,7 +15,7 @@ repo-group: rdf
 This package owns:
 
 - wiki-link replacement such as `[[Note]]`
-- property placeholder replacement such as `__label__`
+- token placeholder replacement such as `__label__`
 - context-aware token replacement for `__THIS__`, `__DOC__`, and `__REPO__`
 - SPARQL parsing after rewrite
 - repository/file rewrite context helpers
@@ -29,3 +29,7 @@ const result = rewriteAndParseQuery(
   'SELECT * WHERE { __THIS__ __label__ [[Linked Note]] }',
   { filePath: '/notes/example.md' }
 )
+```
+
+`__label__` rewrites to `<urn:token:label>` and `[[Linked Note]]` rewrites to
+`<urn:name:Linked%20Note>`.
