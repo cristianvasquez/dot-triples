@@ -1,0 +1,14 @@
+{
+  "name": "canonical-md",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "rdf-ext": "^2.6.0"
+  }
+}

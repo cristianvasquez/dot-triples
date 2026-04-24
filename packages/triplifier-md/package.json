@@ -1,0 +1,21 @@
+{
+  "name": "triplifier-md",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Minimal markdown to N-Triples triplifier for frontmatter and Obsidian-style :: fields",
+  "bin": {
+    "triplify": "./src/cli.js"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "bench:workspace": "node test/benchmark-workspace.js"
+  },
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "dependencies": {
+    "@rdfjs/serializer-ntriples": "^2.0.1",
+    "canonical-md": "workspace:*",
+    "rdf-ext": "^2.6.0"
+  }
+}

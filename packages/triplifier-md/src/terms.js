@@ -1,6 +1,6 @@
 import { basename } from 'node:path'
 import rdf from 'rdf-ext'
-import { NAME_BASE, PROPERTY_BASE, nameToUri, propertyToUri } from './canonical.js'
+import { NAME_BASE, PROPERTY_BASE, nameToUri, propertyToUri } from 'canonical-md'
 
 const CURIE = /^[a-zA-Z][\w-]*:[^\s]+$/
 const ABSOLUTE_IRI = /^[a-zA-Z][a-zA-Z\d+.-]*:[^\s]*$/

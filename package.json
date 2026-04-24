@@ -1,19 +1,9 @@
 {
-  "name": "dot-triples",
-  "version": "0.1.0",
+  "name": "dot-triples-monorepo",
+  "private": true,
   "type": "module",
-  "description": "Minimal markdown to N-Triples triplifier for frontmatter and Obsidian-style :: fields",
-  "bin": {
-    "triplify": "./src/cli.js"
-  },
+  "packageManager": "pnpm@10.32.1",
   "scripts": {
-    "test": "node --test",
-    "compare": "node scripts/compare-with-vault-triplifier.mjs",
-    "bench:workspace": "node test/benchmark-workspace.js"
-  },
-  "exports": "./src/index.js",
-  "dependencies": {
-    "@rdfjs/serializer-ntriples": "^2.0.1",
-    "rdf-ext": "^2.6.0"
+    "test": "pnpm -r test"
   }
 }

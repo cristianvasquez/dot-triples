@@ -1,6 +1,6 @@
 version: 1
 enabled: true
-group: osg
+group: rdf
 indexing:
   include:
     - "**/*.md"
