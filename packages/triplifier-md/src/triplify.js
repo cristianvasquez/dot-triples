@@ -1,58 +1,22 @@
 import rdf from 'rdf-ext'
 import { parseSimpleYaml, parseScalar } from './frontmatter.js'
-import { objectTerm, plainLiteralTerm, predicateIri, subjectIri, MAPPINGS } from './terms.js'
+import {
+  UNTYPED_TOKEN,
+  documentNode,
+  objectTerm,
+  owningDocumentNodeForConceptName,
+  plainLiteralTerm,
+  predicateNode,
+  sectionConceptNode,
+  topConceptName,
+  topConceptNode,
+  urlNode,
+  wikiConceptName,
+  isAbsoluteIri,
+} from './terms.js'
 
-function splitList(value) {
-  const parts = []
-  let current = ''
-  let quote = null
-
-  for (const char of value) {
-    if ((char === '"' || char === '\'') && (!quote || quote === char)) {
-      quote = quote ? null : char
-      current += char
-      continue
-    }
-
-    if (char === ',' && !quote) {
-      parts.push(current.trim())
-      current = ''
-      continue
-    }
-
-    current += char
-  }
-
-  if (current.trim()) parts.push(current.trim())
-  return parts
-}
-
-function sectionIri(subject, headings) {
-  const base = typeof subject === 'string' ? subject.slice(1, -1) : subject.value
-  const suffix = headings.map(heading => encodeURIComponent(heading)).join('#')
-  return `<${base}#${suffix}>`
-}
-
-function sectionSubject(subject, headings) {
-  return rdf.namedNode(sectionIri(subject, headings).slice(1, -1))
-}
-
-function parseInlineValue(value) {
-  const parts = splitList(String(value))
-  if (parts.length > 1) {
-    return parts.map(part => parseAtomicValue(part))
-  }
-  return parseAtomicValue(value)
-}
-
-function parseAtomicValue(value) {
-  const trimmed = String(value).trim()
-  if (!trimmed) return ''
-  if (trimmed.startsWith('`') && trimmed.endsWith('`')) {
-    return trimmed.slice(1, -1)
-  }
-  return trimmed
-}
+const RDFS_LABEL = rdf.namedNode('rdfs:label')
+const MARKDOWN_LINK = /\[([^\]]+)\]\(([^)\s]+)\)/g
 
 function emitQuads(onQuad, subject, predicate, value, options = {}) {
   const { plainObject = false } = options
@@ -72,38 +36,73 @@ function createQuadWriter(onQuad) {
   }
 }
 
+function parseFieldValue(value) {
+  const trimmed = String(value).trim()
+
+  if (!trimmed) return ''
+
+  if (trimmed.startsWith('`') && trimmed.endsWith('`')) {
+    return trimmed.slice(1, -1)
+  }
+
+  return trimmed
+}
+
 export function createTriplifyProcessor(options = {}) {
-  const { sourceId = 'stdin', onQuad = () => {}, mappings } = options
-  const resolvedMappings = mappings ? { ...MAPPINGS, ...mappings } : MAPPINGS
-  const resolvePredicate = (key) => predicateIri(key, resolvedMappings)
-  const codeBlockPredicate = language => rdf.namedNode(`urn:code-block:${encodeURIComponent(language)}`)
+  const { sourceId = 'stdin.md', onQuad = () => {} } = options
   const writeQuad = createQuadWriter(onQuad)
-  const labeledSubjects = new Set()
-  let subject = subjectIri({}, sourceId)
+  const localDocumentNode = documentNode(sourceId)
+  const localTopConceptNode = topConceptNode(sourceId)
+  const localTopConceptName = topConceptName(sourceId)
+
+  const materializedConcepts = new Set()
+  const labeledConcepts = new Set()
+  const labeledUrls = new Set()
+  const outlineLines = []
+
   let frontmatterLines = []
   let inFrontmatter = false
   let atDocumentStart = true
   let inCodeFence = false
   let codeFenceLanguage = null
   let codeFenceLines = []
-  let currentH2 = null
-  let currentH3 = null
+  let firstH1Seen = false
+  let currentSectionNode = null
+
+  function currentSubject() {
+    if (currentSectionNode) return currentSectionNode
+    if (firstH1Seen) return localTopConceptNode
+    return localDocumentNode
+  }
+
+  function materializeConceptByName(conceptName) {
+    if (!conceptName) return null
+
+    const conceptNode = rdf.namedNode(`urn:name:${encodeURIComponent(conceptName)}`)
+    const key = conceptNode.value
+    if (!materializedConcepts.has(key)) {
+      materializedConcepts.add(key)
+      writeQuad(owningDocumentNodeForConceptName(conceptName), predicateNode('about'), conceptNode)
+    }
+
+    return conceptNode
+  }
+
+  function emitLabelIfNeeded(subject, label) {
+    if (!label || labeledConcepts.has(subject.value)) return
+    writeQuad(subject, RDFS_LABEL, label, { plainObject: true })
+    labeledConcepts.add(subject.value)
+  }
 
   function emitFrontmatter(frontmatter) {
-    subject = subjectIri(frontmatter, sourceId)
-
     for (const [key, value] of Object.entries(frontmatter)) {
-      if (key === 'uri') continue
-      writeQuad(subject, resolvePredicate(key), value, {
-        plainObject: key === 'label' || key === 'title'
-      })
+      writeQuad(localDocumentNode, predicateNode(key), value)
     }
   }
 
-  function currentSubject() {
-    if (currentH3) return sectionSubject(subject, [currentH3])
-    if (currentH2) return sectionSubject(subject, [currentH2])
-    return subject
+  function appendOutline(depth, title) {
+    const indent = '\t'.repeat(Math.max(0, depth - 1))
+    outlineLines.push(`${indent}* ${title}`)
   }
 
   function handleHeading(line) {
@@ -112,54 +111,70 @@ export function createTriplifyProcessor(options = {}) {
 
     const depth = headingMatch[1].length
     const title = headingMatch[2].trim()
+    if (!title) return true
 
-    if (depth === 2 && title) {
-      currentH2 = title
-      currentH3 = null
-    } else if (depth === 3 && title) {
-      currentH3 = title
-    } else if (depth < 2) {
-      currentH2 = null
-      currentH3 = null
-    }
+    appendOutline(depth, title)
 
-    if ((depth === 2 || depth === 3) && title) {
-      const sectionNode = depth === 3
-        ? sectionSubject(subject, [currentH3].filter(Boolean))
-        : sectionSubject(subject, [currentH2].filter(Boolean))
+    if (depth === 1) {
+      currentSectionNode = null
 
-      if (!labeledSubjects.has(sectionNode)) {
-        writeQuad(sectionNode, resolvePredicate('label'), title, {
-          plainObject: true
-        })
-        labeledSubjects.add(sectionNode)
+      if (!firstH1Seen) {
+        firstH1Seen = true
+        materializeConceptByName(localTopConceptName)
+        emitLabelIfNeeded(localTopConceptNode, title)
       }
+
+      return true
     }
 
+    const sectionNode = sectionConceptNode(sourceId, title)
+    currentSectionNode = sectionNode
+    materializeConceptByName(`${localTopConceptName}#${title}`)
+    emitLabelIfNeeded(sectionNode, title)
     return true
   }
 
   function handleField(line) {
     const normalizedLine = line.replace(/^\s*[-*+]\s+/, '')
     const match = normalizedLine.match(/^\s*([^:#][^:]*?)\s*::\s*(.+?)\s*$/)
-    if (!match) return
+    if (!match) return false
 
     const [, key, rawValue] = match
     const trimmedKey = key.trim()
+    const parsedValue = parseFieldValue(rawValue)
+    writeQuad(currentSubject(), predicateNode(trimmedKey), parsedValue)
 
-    if (trimmedKey === 'uri' && currentSubject() !== subject) {
-      return
+    const conceptName = wikiConceptName(parsedValue)
+    if (conceptName) {
+      materializeConceptByName(conceptName)
     }
 
-    writeQuad(currentSubject(), resolvePredicate(trimmedKey), parseInlineValue(rawValue), {
-      plainObject: trimmedKey === 'label' || trimmedKey === 'title'
-    })
+    return true
+  }
+
+  function handleMarkdownLinks(line) {
+    let matched = false
+
+    for (const match of line.matchAll(MARKDOWN_LINK)) {
+      const [, label, uri] = match
+      if (!label || !uri || !isAbsoluteIri(uri)) continue
+
+      matched = true
+      const target = urlNode(uri)
+      writeQuad(currentSubject(), UNTYPED_TOKEN, target)
+
+      if (!labeledUrls.has(target.value)) {
+        writeQuad(target, RDFS_LABEL, label, { plainObject: true })
+        labeledUrls.add(target.value)
+      }
+    }
+
+    return matched
   }
 
   function emitCodeBlock() {
     if (!codeFenceLanguage) return
-
-    writeQuad(currentSubject(), codeBlockPredicate(codeFenceLanguage), codeFenceLines.join('\n'), {
+    writeQuad(currentSubject(), rdf.namedNode(`urn:code-block:${encodeURIComponent(codeFenceLanguage)}`), codeFenceLines.join('\n'), {
       plainObject: true
     })
   }
@@ -186,8 +201,17 @@ export function createTriplifyProcessor(options = {}) {
       codeFenceLines.push(line)
       return
     }
+
     if (handleHeading(line)) return
-    handleField(line)
+    if (handleField(line)) return
+    handleMarkdownLinks(line)
+  }
+
+  function emitOutlineIfNeeded() {
+    if (!outlineLines.length) return
+    writeQuad(localDocumentNode, predicateNode('outline'), outlineLines.join('\n'), {
+      plainObject: true
+    })
   }
 
   return {
@@ -221,18 +245,20 @@ export function createTriplifyProcessor(options = {}) {
 
     end() {
       if (inCodeFence) {
-        const location = sourceId || 'stdin'
+        const location = sourceId || 'stdin.md'
         throw new Error(`Unclosed fenced code block in ${location}`)
       }
 
-      if (!inFrontmatter) return
-
-      inFrontmatter = false
-      processBodyLine('---')
-      for (const line of frontmatterLines) {
-        processBodyLine(line)
+      if (inFrontmatter) {
+        inFrontmatter = false
+        processBodyLine('---')
+        for (const line of frontmatterLines) {
+          processBodyLine(line)
+        }
+        frontmatterLines = []
       }
-      frontmatterLines = []
+
+      emitOutlineIfNeeded()
     }
   }
 }
@@ -257,8 +283,5 @@ export function triplify(content, options = {}) {
 export const internals = {
   parseSimpleYaml,
   parseScalar,
-  predicateIri,
-  subjectIri,
-  sectionIri,
-  createTriplifyProcessor
+  parseFieldValue,
 }

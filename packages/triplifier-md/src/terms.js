@@ -1,41 +1,42 @@
 import { basename } from 'node:path'
 import rdf from 'rdf-ext'
-import { NAME_BASE, PROPERTY_BASE, nameToUri, propertyToUri } from 'canonical-md'
+import { UNTYPED_TOKEN, nameToURI, tokenToURI } from 'canonical-md'
 
 const CURIE = /^[a-zA-Z][\w-]*:[^\s]+$/
 const ABSOLUTE_IRI = /^[a-zA-Z][a-zA-Z\d+.-]*:[^\s]*$/
-export const MAPPINGS = Object.freeze({
-  "is a": "rdf:type",
-  "a": "rdf:type",
-  "type": "rdf:type",
-  "label": "rdfs:label",
-  "title": "rdfs:label"
-})
 
-export function namedNodeFromValue(value, fallbackBase) {
-  const stringValue = String(value).trim()
+export function documentName(sourceId = 'stdin.md') {
+  return basename(sourceId || 'stdin.md')
+}
 
-  if (!stringValue) {
-    throw new Error('Cannot build IRI from empty value')
-  }
+export function topConceptName(sourceId = 'stdin.md') {
+  const name = documentName(sourceId)
+  return name.endsWith('.md') ? name.slice(0, -3) : name
+}
 
-  if (stringValue.startsWith('[[') && stringValue.endsWith(']]')) {
-    return nameToUri(stringValue.slice(2, -2).trim())
-  }
+export function documentNode(sourceId = 'stdin.md') {
+  return nameToURI(documentName(sourceId))
+}
 
-  if (CURIE.test(stringValue)) return rdf.namedNode(stringValue)
+export function topConceptNode(sourceId = 'stdin.md') {
+  return nameToURI(topConceptName(sourceId))
+}
 
-  if (ABSOLUTE_IRI.test(stringValue)) return rdf.namedNode(stringValue)
+export function sectionConceptNode(sourceId, headingText) {
+  return nameToURI(`${topConceptName(sourceId)}#${headingText}`)
+}
 
-  if (fallbackBase === NAME_BASE) {
-    return nameToUri(stringValue)
-  }
+export function owningDocumentNodeForConceptName(conceptName) {
+  const ownerName = conceptName.split('#', 1)[0]
+  return nameToURI(`${ownerName}.md`)
+}
 
-  if (fallbackBase === PROPERTY_BASE) {
-    return propertyToUri(stringValue)
-  }
+export function predicateNode(key) {
+  return tokenToURI(String(key).trim())
+}
 
-  return rdf.namedNode(`${fallbackBase}${encodeURI(stringValue)}`)
+export function plainLiteralTerm(value) {
+  return rdf.literal(String(value))
 }
 
 export function objectTerm(value) {
@@ -43,37 +44,41 @@ export function objectTerm(value) {
     return value.map(item => objectTerm(item))
   }
 
+  if (value && typeof value === 'object' && typeof value.termType === 'string') {
+    return value
+  }
+
   if (typeof value === 'string') {
-    if (value.startsWith('[[') && value.endsWith(']]')) {
-      return namedNodeFromValue(value, NAME_BASE)
+    const trimmed = value.trim()
+
+    if (trimmed.startsWith('[[') && trimmed.endsWith(']]')) {
+      return nameToURI(trimmed.slice(2, -2).trim())
     }
 
-    if (CURIE.test(value) || ABSOLUTE_IRI.test(value)) {
-      return namedNodeFromValue(value, NAME_BASE)
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      return tokenToURI(trimmed.slice(1, -1).trim())
+    }
+
+    if (CURIE.test(trimmed) || ABSOLUTE_IRI.test(trimmed)) {
+      return rdf.namedNode(trimmed)
     }
   }
 
   return rdf.literal(String(value))
 }
 
-export function plainLiteralTerm(value) {
-  return rdf.literal(String(value))
+export function urlNode(value) {
+  return rdf.namedNode(String(value).trim())
 }
 
-export function subjectIri(frontmatter, sourceId = 'stdin') {
-  if (frontmatter.uri && String(frontmatter.uri).trim()) {
-    return namedNodeFromValue(frontmatter.uri, NAME_BASE)
-  }
-  const localName = basename(sourceId, '.md')
-  return nameToUri(localName)
+export function isAbsoluteIri(value) {
+  return ABSOLUTE_IRI.test(String(value).trim())
 }
 
-export function predicateIri(key, mappings = MAPPINGS) {
-  const normalized = String(key).trim()
-  const mappedKey = mappings[normalized] ?? mappings[normalized.toLowerCase()]
-  if (mappedKey) {
-    return namedNodeFromValue(mappedKey, PROPERTY_BASE)
-  }
-
-  return namedNodeFromValue(normalized, PROPERTY_BASE)
+export function wikiConceptName(value) {
+  const trimmed = String(value).trim()
+  if (!trimmed.startsWith('[[') || !trimmed.endsWith(']]')) return null
+  return trimmed.slice(2, -2).trim()
 }
+
+export { UNTYPED_TOKEN }
