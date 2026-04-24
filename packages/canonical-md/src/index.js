@@ -3,46 +3,51 @@ import rdf from 'rdf-ext'
 // Shared canonical RDF term helpers for both Node and browser consumers.
 // Keep this module standalone: no Node built-ins and no imports from other repo modules.
 
-function toUri(text, namespace) {
-  return namespace[encodeURI(text)]
-}
-
-function fromUri(term, namespace) {
-  if (!term || term.termType !== 'NamedNode') {
-    return null
-  }
-
-  const base = namespace().value
-  if (!term.value.startsWith(base)) {
-    return null
-  }
-
-  const suffix = term.value.slice(base.length)
-  return decodeURI(suffix)
-}
-
 const namespaces = {
-  property: rdf.namespace('urn:property:'),
-  name: rdf.namespace('urn:name:')
+  name: rdf.namespace('urn:name:'),
+  token: rdf.namespace('urn:token:'),
 }
 
-const NAME_BASE = namespaces.name().value
-const PROPERTY_BASE = namespaces.property().value
+export const UNTYPED_TOKEN = rdf.namedNode('urn:token:_')
 
-function propertyToUri(property) {
-  return toUri(property, namespaces.property)
+function assertTrimmed(s) {
+  if (typeof s === 'string' && s !== s.trim()) {
+    throw new Error(`Value must be pre-trimmed, got: ${JSON.stringify(s)}`)
+  }
 }
 
-function propertyFromUri(term) {
-  return fromUri(term, namespaces.property)
+export function nameToURI(s) {
+  if (s == null || s === '') {
+    throw new Error('Name must not be null, undefined, or empty')
+  }
+  assertTrimmed(s)
+  return namespaces.name[encodeURIComponent(s)]
 }
 
-function nameToUri(name) {
-  return toUri(name, namespaces.name)
+export function nameFromURI(term) {
+  if (!term || term.termType !== 'NamedNode') return null
+  const base = namespaces.name().value
+  if (!term.value.startsWith(base)) return null
+  return decodeURIComponent(term.value.slice(base.length))
 }
 
-function nameFromUri(term) {
-  return fromUri(term, namespaces.name)
+export function tokenToURI(s) {
+  if (s == null || s === '' || s === '_') return UNTYPED_TOKEN
+  assertTrimmed(s)
+  return namespaces.token[encodeURIComponent(s)]
+}
+
+export function tokenFromURI(term) {
+  if (!term || term.termType !== 'NamedNode') return null
+  if (term.value === UNTYPED_TOKEN.value) return null
+  const base = namespaces.token().value
+  if (!term.value.startsWith(base)) return null
+  return decodeURIComponent(term.value.slice(base.length))
+}
+
+export function tokenToLiteral(s) {
+  assertTrimmed(s)
+  return rdf.literal(String(s))
 }
 
 function pathToFileURL(filepath) {
@@ -80,12 +85,6 @@ function fileURLToPath(term) {
 }
 
 export {
-  NAME_BASE,
-  PROPERTY_BASE,
   fileURLToPath,
-  nameFromUri,
-  nameToUri,
   pathToFileURL,
-  propertyFromUri,
-  propertyToUri
 }
