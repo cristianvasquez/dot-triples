@@ -1,3 +1,8 @@
+---
+repo-group: rdf
+tags: [spec/rdf]
+---
+
 # Why Streaming Quads
 
 The original shape of this repo was:
@@ -16,6 +21,7 @@ Internally that still means:
 ## The Problem
 
 Once `triplify` has emitted N-Triples, the downstream stages are no longer parsing Markdown.
+
 They are parsing RDF again.
 
 That means the text pipeline paid for the same conversion work repeatedly:
@@ -53,6 +59,7 @@ The earlier text-based downstream pipeline was roughly an order of magnitude slo
 Pure quad streams are not shell-composable in the Unix sense.
 
 Shell pipes move bytes between processes.
+
 RDFJS quad streams move JavaScript objects inside a Node process.
 
 So this works:

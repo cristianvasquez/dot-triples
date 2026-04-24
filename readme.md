@@ -9,7 +9,7 @@ repo-group: rdf
 
 # [dot-triples](osg://repo/github.com/cristianvasquez/dot-triples)
 
-Minimal pnpm monorepo for Markdown-oriented RDF tooling.
+Tooling to produce and query RDF from markdown. 
 
 - Packages
 	- [[canonical-md]]
@@ -22,5 +22,3 @@ Minimal pnpm monorepo for Markdown-oriented RDF tooling.
 pnpm install
 pnpm test
 ```
-
-Package-specific behavior and examples live in each package `readme.md`.
