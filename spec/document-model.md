@@ -191,16 +191,27 @@ The triplifier does not know about `rdf:type`. Type assignments happen in downst
 | Absolute IRI `https://...` | `rdf.namedNode('https://...')`                          |
 | plain text                 | `rdf.literal('value')`                                  |
 
-## URL extraction from prose
+## Named reference extraction from prose
 
-Only `[label](uri)` markdown link syntax is extracted. Bare URLs in prose are ignored.
+Named references in prose emit `urn:token:_` on the current subject.
+The same extraction also runs on heading text after the heading concept is materialized, so references in `#` or `##` titles hang from that heading concept.
+
+Supported forms:
+
+- `[label](uri)` markdown links
+- `[[Name]]` and `[[Name#Section]]` wiki links
+- `[value]` token references
+- bare CURIE or absolute IRI values such as `schema:Person` or `https://example.com/spec`
 
 ```markdown
-See [the spec](https://example.com/spec) for details.
+See [the spec](https://example.com/spec), [[Bob]], [sparql], and schema:Person.
 ```
 
 ```
 urn:name:Alice%23Skills  urn:token:_  <https://example.com/spec>
+urn:name:Alice%23Skills  urn:token:_  urn:name:Bob
+urn:name:Alice%23Skills  urn:token:_  urn:token:sparql
+urn:name:Alice%23Skills  urn:token:_  schema:Person
 <https://example.com/spec>  rdfs:label  "the spec"
 ```
 

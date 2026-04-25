@@ -142,6 +142,31 @@ See [the spec](https://example.com/spec) for details.
   assert.match(nt, /<https:\/\/example\.com\/spec> <rdfs:label> "the spec" \./)
 })
 
+test('other named references in prose attach to the current subject with the unnamed predicate', async () => {
+  const nt = await serializeQuads(triplify(`# Alice
+
+## References
+See [[Bob]], [sparql], schema:Person, and https://example.com/spec for details.
+`, { name: 'Alice', file: 'Alice.md' }))
+
+  assert.match(nt, /<urn:name:Alice%23References> <urn:token:_> <urn:name:Bob> \./)
+  assert.match(nt, /<urn:name:Alice%23References> <urn:token:_> <urn:token:sparql> \./)
+  assert.match(nt, /<urn:name:Alice%23References> <urn:token:_> <schema:Person> \./)
+  assert.match(nt, /<urn:name:Alice%23References> <urn:token:_> <https:\/\/example\.com\/spec> \./)
+})
+
+test('named references in heading text attach to the heading concept with the unnamed predicate', async () => {
+  const nt = await serializeQuads(triplify(`# Alice
+
+## Links with [[Bob]] and [sparql]
+`, { name: 'Alice', file: 'Alice.md' }))
+
+  assert.match(nt, /<urn:name:Alice\.md> <urn:token:about> <urn:name:Alice%23Links%20with%20%5B%5BBob%5D%5D%20and%20%5Bsparql%5D> \./)
+  assert.match(nt, /<urn:name:Alice%23Links%20with%20%5B%5BBob%5D%5D%20and%20%5Bsparql%5D> <rdfs:label> "Links with \[\[Bob\]\] and \[sparql\]" \./)
+  assert.match(nt, /<urn:name:Alice%23Links%20with%20%5B%5BBob%5D%5D%20and%20%5Bsparql%5D> <urn:token:_> <urn:name:Bob> \./)
+  assert.match(nt, /<urn:name:Alice%23Links%20with%20%5B%5BBob%5D%5D%20and%20%5Bsparql%5D> <urn:token:_> <urn:token:sparql> \./)
+})
+
 test('inline fields ignore fenced code blocks', async () => {
   const nt = await serializeQuads(triplify(`# Example
 

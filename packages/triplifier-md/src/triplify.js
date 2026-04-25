@@ -15,6 +15,13 @@ import {
 
 const RDFS_LABEL = rdf.namedNode('rdfs:label')
 const MARKDOWN_LINK = /\[([^\]]+)\]\(([^)\s]+)\)/g
+const WIKI_LINK = /\[\[([^\]]+)\]\]/g
+const TOKEN_REFERENCE = /\[([^\[\]]+)\](?!\()/g
+const NAMED_REFERENCE = /(^|[\s(>])([a-zA-Z][\w+.-]*:[^\s<>)\]},"']+)/g
+
+function rangeOverlaps(ranges, start, end) {
+  return ranges.some(([rangeStart, rangeEnd]) => start < rangeEnd && end > rangeStart)
+}
 
 function emitQuads(onQuad, subject, predicate, value, options = {}) {
   const { plainObject = false } = options
@@ -113,6 +120,7 @@ export function createTriplifyProcessor(options = {}) {
         currentHeadingNode = null
         materializeLocalConcept(localTopConceptNode, title)
         emitHeadingMeta(localTopConceptNode, line, depth)
+        handleUnnamedNamedReferences(title, localTopConceptNode)
         return true
       }
     }
@@ -121,6 +129,7 @@ export function createTriplifyProcessor(options = {}) {
     currentHeadingNode = headingNode
     materializeLocalConcept(headingNode, title)
     emitHeadingMeta(headingNode, line, depth)
+    handleUnnamedNamedReferences(title, headingNode)
     return true
   }
 
@@ -137,8 +146,9 @@ export function createTriplifyProcessor(options = {}) {
     return true
   }
 
-  function handleMarkdownLinks(line) {
+  function handleUnnamedNamedReferences(line, subject = currentSubject()) {
     let matched = false
+    const occupiedRanges = []
 
     for (const match of line.matchAll(MARKDOWN_LINK)) {
       const [, label, uri] = match
@@ -146,12 +156,52 @@ export function createTriplifyProcessor(options = {}) {
 
       matched = true
       const target = urlNode(uri)
-      writeQuad(currentSubject(), UNTYPED_TOKEN, target)
+      writeQuad(subject, UNTYPED_TOKEN, target)
+      occupiedRanges.push([match.index, match.index + match[0].length])
 
       if (!labeledUrls.has(target.value)) {
         writeQuad(target, RDFS_LABEL, label, { plainObject: true })
         labeledUrls.add(target.value)
       }
+    }
+
+    for (const match of line.matchAll(WIKI_LINK)) {
+      const [, targetName] = match
+      if (!targetName) continue
+
+      const start = match.index
+      const end = start + match[0].length
+      if (rangeOverlaps(occupiedRanges, start, end)) continue
+
+      matched = true
+      occupiedRanges.push([start, end])
+      writeQuad(subject, UNTYPED_TOKEN, objectTerm(match[0]))
+    }
+
+    for (const match of line.matchAll(TOKEN_REFERENCE)) {
+      const [, tokenName] = match
+      if (!tokenName) continue
+
+      const start = match.index
+      const end = start + match[0].length
+      if (rangeOverlaps(occupiedRanges, start, end)) continue
+
+      matched = true
+      occupiedRanges.push([start, end])
+      writeQuad(subject, UNTYPED_TOKEN, objectTerm(match[0]))
+    }
+
+    for (const match of line.matchAll(NAMED_REFERENCE)) {
+      const value = match[2]
+      if (!value) continue
+
+      const start = match.index + match[1].length
+      const end = start + value.length
+      if (rangeOverlaps(occupiedRanges, start, end)) continue
+
+      matched = true
+      occupiedRanges.push([start, end])
+      writeQuad(subject, UNTYPED_TOKEN, objectTerm(value))
     }
 
     return matched
@@ -189,7 +239,7 @@ export function createTriplifyProcessor(options = {}) {
 
     if (handleHeading(line)) return
     if (handleField(line)) return
-    handleMarkdownLinks(line)
+    handleUnnamedNamedReferences(line)
   }
 
   return {
