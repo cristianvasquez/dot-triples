@@ -221,6 +221,18 @@ test('typed-literals upgrades plain literals in a later pipe', () => {
   assert.equal(typed[3].object.datatype.value, 'http://www.w3.org/2001/XMLSchema#string')
 })
 
+test('typed-literals leaves rdfs:label values as plain strings', () => {
+  const typed = [
+    typeQuad(rdf.quad(rdf.namedNode('urn:name:hex'), rdf.namedNode('rdfs:label'), rdf.literal('0xd34df00d'))),
+    typeQuad(rdf.quad(rdf.namedNode('urn:name:year'), rdf.namedNode('rdfs:label'), rdf.literal('1956'))),
+    typeQuad(rdf.quad(rdf.namedNode('urn:name:date'), rdf.namedNode('http://www.w3.org/2000/01/rdf-schema#label'), rdf.literal('2025-07-18')))
+  ]
+
+  assert.equal(typed[0].object.datatype.value, 'http://www.w3.org/2001/XMLSchema#string')
+  assert.equal(typed[1].object.datatype.value, 'http://www.w3.org/2001/XMLSchema#string')
+  assert.equal(typed[2].object.datatype.value, 'http://www.w3.org/2001/XMLSchema#string')
+})
+
 test('mapping upgrades triplify output before typed-literals', async () => {
   const typed = await serializeQuadStream(
     Readable
@@ -232,6 +244,23 @@ test('mapping upgrades triplify output before typed-literals', async () => {
 
   assert.match(typed, /<urn:name:Alice> <urn:token:type> <https:\/\/schema\.org\/Person> \./)
   assert.match(typed, /<urn:name:Alice> <urn:token:born> "2024-03-15"\^\^<http:\/\/www\.w3\.org\/2001\/XMLSchema#date> \./)
+})
+
+test('label quads stay plain after curie expansion and typed-literals', async () => {
+  const typed = await serializeQuadStream(
+    Readable
+      .from(['# 2025-07-18\n## 1956\nSee [0xd34df00d](https://example.com/osg).\n'])
+      .pipe(createTriplifyQuadTransform({ name: 'Alice', file: 'Alice.md' }))
+      .pipe(createCurieExpansionQuadTransform())
+      .pipe(createTypedLiteralsQuadTransform())
+  )
+
+  assert.match(typed, /<urn:name:Alice> <http:\/\/www\.w3\.org\/2000\/01\/rdf-schema#label> "2025-07-18" \./)
+  assert.match(typed, /<urn:name:Alice%231956> <http:\/\/www\.w3\.org\/2000\/01\/rdf-schema#label> "1956" \./)
+  assert.match(typed, /<https:\/\/example\.com\/osg> <http:\/\/www\.w3\.org\/2000\/01\/rdf-schema#label> "0xd34df00d" \./)
+  assert.doesNotMatch(typed, /rdf-schema#label> "2025-07-18"\^\^/)
+  assert.doesNotMatch(typed, /rdf-schema#label> "1956"\^\^/)
+  assert.doesNotMatch(typed, /rdf-schema#label> "0xd34df00d"\^\^/)
 })
 
 test('rdf-ext serializer round-trips typed literals', async () => {

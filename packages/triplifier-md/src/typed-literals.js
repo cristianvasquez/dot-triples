@@ -5,6 +5,8 @@ const ISO_DATETIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{
 const YYYY_MM_DD_SLASH = /^\d{4}\/\d{2}\/\d{2}$/
 const MM_DD_YYYY = /^\d{2}\/\d{2}\/\d{4}$/
 const XSD = 'http://www.w3.org/2001/XMLSchema#'
+const RDFS_LABEL = 'rdfs:label'
+const RDFS_LABEL_IRI = 'http://www.w3.org/2000/01/rdf-schema#label'
 
 function isValidDateString(value) {
   return (
@@ -41,6 +43,7 @@ export function typeQuad(quad) {
   if (quad.object.termType !== 'Literal') return quad
   if (quad.object.language) return quad
   if (quad.object.datatype?.value !== `${XSD}string`) return quad
+  if (quad.predicate.value === RDFS_LABEL || quad.predicate.value === RDFS_LABEL_IRI) return quad
 
   const datatype = inferTypedLiteral(quad.object.value)
   if (!datatype) return quad
