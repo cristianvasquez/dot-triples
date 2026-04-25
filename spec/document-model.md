@@ -11,7 +11,7 @@ A markdown file produces two kinds of nodes in the graph:
 
 Document node: the file itself. It holds frontmatter metadata and exists for provenance. It links to each materialized concept via `urn:token:about`.
 
-Concept nodes: the things described inside the file. They connect to concept nodes in other documents. They do not carry frontmatter. One concept node is the top concept of the document; the rest are section concepts materialized from headings. If parent-child relations matter, they must be written explicitly in markdown as normal fields.
+Concept nodes: the things described inside the file. They connect to concept nodes in other documents. They do not carry frontmatter. One concept node is the top concept of the document; the rest are heading concepts materialized from headings. If parent-child relations matter, they must be written explicitly in markdown as normal fields.
 
 These are distinct nodes in the graph with distinct IRIs.
 
@@ -67,9 +67,9 @@ nameToURI(name)
 
 Case is preserved exactly. `[[Alice]]` in any other file must use the same casing to resolve to the same IRI.
 
-### H1 materializes the top concept
+### First H1 materializes the top concept
 
-The first `#` heading does not create a new concept node. It materializes the top concept already implied by `name` and sets `rdfs:label` from the heading text:
+The first `#` heading materializes the top concept already implied by `name` and sets `rdfs:label` from the heading text:
 
 ```markdown
 # Alice Smith
@@ -81,9 +81,11 @@ urn:name:Alice  rdfs:label  "Alice Smith"
 
 The top concept is just another concept node. The document node links to it with `urn:token:about`.
 
+Any later `#` heading in the same file is treated like any other heading and materializes a heading concept with `#` in the concept name. Only the first H1 is special.
+
 ### Body-level fields
 
-Inline fields that appear in the document body before the first section heading attach to the current document-level subject. If an H1 has materialized the top concept, they attach to the top concept:
+Inline fields that appear in the document body before the first later heading attach to the current document-level subject. If an H1 has materialized the top concept, they attach to the top concept:
 
 ```markdown
 # Alice Smith
@@ -95,9 +97,9 @@ role :: Product Manager
 urn:name:Alice  urn:token:role  "Product Manager"
 ```
 
-## Section concept nodes
+## Heading concept nodes
 
-All headings at depth H2 through H6 create section concept nodes. The IRI is flat regardless of heading depth:
+All headings after the first H1 create heading concept nodes. This includes later H1 headings and all headings at depth H2 through H6. The IRI is flat regardless of heading depth:
 
 ```
 nameToURI(name + '#' + headingText)
@@ -109,17 +111,23 @@ nameToURI(name + '#' + headingText)
 nameToURI('Alice#Skills')  →  urn:name:Alice%23Skills
 ```
 
+`# Advanced` after the first H1 in `Alice.md`:
+
+```
+nameToURI('Alice#Advanced')  →  urn:name:Alice%23Advanced
+```
+
 `### Advanced` in `Alice.md`:
 
 ```
 nameToURI('Alice#Advanced')  →  urn:name:Alice%23Advanced
 ```
 
-Depth is not encoded. `### Advanced` and `## Advanced` in the same file produce the same IRI. Repeated headings with the same text in the same file also produce the same IRI. This merge is intentional. If structure matters, look at the document. This mirrors Obsidian's `[[Alice#Skills]]` link syntax, where `#` is part of the name string and `encodeURIComponent` encodes it as `%23`.
+Depth is not encoded. `# Advanced` after the first H1, `## Advanced`, and `### Advanced` in the same file all produce the same IRI. Repeated headings with the same text in the same file also produce the same IRI. This merge is intentional. If structure matters, look at the document. This mirrors Obsidian's `[[Alice#Skills]]` link syntax, where `#` is part of the name string and `encodeURIComponent` encodes it as `%23`.
 
-### Fields under a section
+### Fields under a heading
 
-Inline fields attach to the current section concept:
+Inline fields attach to the current heading concept:
 
 ```markdown
 ## Skills
@@ -141,7 +149,7 @@ Concept nodes connect across documents because `[[Name]]` and `[[Name#Section]]`
 
 Files can be triplified independently in any order. The merged graph is identical regardless of order. No coordination between files is required.
 
-A concept is materialized when it is introduced by a local heading or referenced by a wiki link. When a concept is materialized, its owning document node emits `urn:token:about` for it, even if that concept was not introduced by a local heading in that document. This is the tradeoff that allows the model to avoid materializing every possible header while still preserving stable merged-graph behavior for cross-document references.
+The triplifier only emits `urn:token:about` for concepts introduced by local headings in the current file. A wiki link such as `[[Bob]]` or `[[Bob#Skills]]` contributes an object IRI to the current triple, but it does not materialize `Bob.md` or add `urn:token:about` triples to any other document. Other files are responsible for emitting their own headings when they are triplified.
 
 ## Field predicates
 
@@ -163,8 +171,8 @@ The triplifier does not know about `rdf:type`. Type assignments happen in downst
 
 `rdfs:label` is the only predicate emitted without `tokenToURI`. It appears in three places only:
 
-- H1 heading → top concept label
-- H2–H6 headings → section concept label
+- first H1 heading → top concept label
+- later headings → heading concept label
 - URL nodes from `[label](uri)` syntax
 
 ## Field objects
@@ -191,7 +199,7 @@ urn:name:Alice%23Skills  urn:token:_  <https://example.com/spec>
 <https://example.com/spec>  rdfs:label  "the spec"
 ```
 
-Predicate on the section concept is `urn:token:_` (UNTYPED_TOKEN). The label triple is emitted only when a label is present in the `[label](uri)` syntax.
+Predicate on the current heading concept is `urn:token:_` (UNTYPED_TOKEN). The label triple is emitted only when a label is present in the `[label](uri)` syntax.
 
 ## What is gone
 

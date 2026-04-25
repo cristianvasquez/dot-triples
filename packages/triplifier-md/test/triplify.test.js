@@ -66,7 +66,7 @@ role :: Product Manager
   assert.doesNotMatch(nt, /<urn:name:Alice> <rdfs:label>/)
 })
 
-test('section headings materialize flat section concepts and attach fields there', async () => {
+test('all later headings materialize flat heading concepts and attach fields there', async () => {
   const nt = await serializeQuads(triplify(`# Alice
 
 ## Skills
@@ -74,15 +74,21 @@ expertise :: Python
 
 ### Skills
 uses :: [sparql]
+
+# Links
+related :: [[Bob]]
 `, { name: 'Alice', file: 'Alice.md' }))
 
   assert.match(nt, /<urn:name:Alice\.md> <urn:token:about> <urn:name:Alice%23Skills> \./)
+  assert.match(nt, /<urn:name:Alice\.md> <urn:token:about> <urn:name:Alice%23Links> \./)
   assert.match(nt, /<urn:name:Alice%23Skills> <rdfs:label> "Skills" \./)
   assert.match(nt, /<urn:name:Alice%23Skills> <urn:token:expertise> "Python" \./)
   assert.match(nt, /<urn:name:Alice%23Skills> <urn:token:uses> <urn:token:sparql> \./)
+  assert.match(nt, /<urn:name:Alice%23Links> <rdfs:label> "Links" \./)
+  assert.match(nt, /<urn:name:Alice%23Links> <urn:token:related> <urn:name:Bob> \./)
 })
 
-test('empty section headings stay in outline but do not materialize concept nodes', async () => {
+test('headings materialize even when they have no body fields', async () => {
   const nt = await serializeQuads(triplify(`# Alice
 
 ## Empty
@@ -92,14 +98,14 @@ role :: Lead
 `, { name: 'Alice', file: 'Alice.md' }))
 
   assert.match(nt, /<urn:name:Alice\.md> <urn:token:outline> "\* Alice\\n\t\* Empty\\n\t\* Filled" \./)
-  assert.doesNotMatch(nt, /<urn:name:Alice\.md> <urn:token:about> <urn:name:Alice%23Empty> \./)
-  assert.doesNotMatch(nt, /<urn:name:Alice%23Empty> <rdfs:label> "Empty" \./)
+  assert.match(nt, /<urn:name:Alice\.md> <urn:token:about> <urn:name:Alice%23Empty> \./)
+  assert.match(nt, /<urn:name:Alice%23Empty> <rdfs:label> "Empty" \./)
   assert.match(nt, /<urn:name:Alice\.md> <urn:token:about> <urn:name:Alice%23Filled> \./)
   assert.match(nt, /<urn:name:Alice%23Filled> <rdfs:label> "Filled" \./)
   assert.match(nt, /<urn:name:Alice%23Filled> <urn:token:role> "Lead" \./)
 })
 
-test('wiki links materialize foreign concepts on their owning document nodes', async () => {
+test('wiki links do not materialize foreign concepts on remote document nodes', async () => {
   const nt = await serializeQuads(triplify(`# Alice
 
 knows :: [[Bob]]
@@ -108,8 +114,8 @@ related :: [[Bob#Some Section]]
 
   assert.match(nt, /<urn:name:Alice> <urn:token:knows> <urn:name:Bob> \./)
   assert.match(nt, /<urn:name:Alice> <urn:token:related> <urn:name:Bob%23Some%20Section> \./)
-  assert.match(nt, /<urn:name:Bob\.md> <urn:token:about> <urn:name:Bob> \./)
-  assert.match(nt, /<urn:name:Bob\.md> <urn:token:about> <urn:name:Bob%23Some%20Section> \./)
+  assert.doesNotMatch(nt, /<urn:name:Bob\.md> <urn:token:about> <urn:name:Bob> \./)
+  assert.doesNotMatch(nt, /<urn:name:Bob\.md> <urn:token:about> <urn:name:Bob%23Some%20Section> \./)
 })
 
 test('markdown links in prose attach to the current subject and label the url node', async () => {

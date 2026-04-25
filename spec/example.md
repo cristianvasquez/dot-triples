@@ -14,7 +14,9 @@ The rule is:
 - if `name` is absent and `file` is present, derive `name = getNameFromPath(file)`
 - document node = `nameToURI(name + '.md')`
 - top concept node = `nameToURI(name)`
-- H1, if present, materializes that top concept and gives it an `rdfs:label` from the heading text
+- the first H1, if present, materializes that top concept and gives it an `rdfs:label` from the heading text
+- every later heading materializes a local heading concept
+- wiki links never materialize `about` triples for other documents
 
 ## Example 1: two documents with headings
 
@@ -62,13 +64,13 @@ related :: [[Alice#Skills]]
 ```text
 Alice.md   -> document node: urn:name:Alice.md
 Alice.md   -> top concept:   urn:name:Alice
-Alice#Skills -> section:     urn:name:Alice%23Skills
-Alice#Links  -> section:     urn:name:Alice%23Links
+Alice#Skills -> heading:     urn:name:Alice%23Skills
+Alice#Links  -> heading:     urn:name:Alice%23Links
 
 Bob.md     -> document node: urn:name:Bob.md
 Bob.md     -> top concept:   urn:name:Bob
-Bob#Skills -> section:       urn:name:Bob%23Skills
-Bob#Links  -> section:       urn:name:Bob%23Links
+Bob#Skills -> heading:       urn:name:Bob%23Skills
+Bob#Links  -> heading:       urn:name:Bob%23Links
 ```
 
 ### Expected triples from `Alice.md`
@@ -159,7 +161,7 @@ topic :: [rdf]
   <urn:token:topic> <urn:token:rdf> .
 ```
 
-## Example 3: cross-document section reference materializes `about`
+## Example 3: cross-document section reference does not materialize remote `about`
 
 ### Input: `Alice.md`
 
@@ -187,9 +189,6 @@ related :: [[Bob#Some Section]]
 <urn:name:Alice>
   rdfs:label "Alice" ;
   <urn:token:related> <urn:name:Bob%23Some%20Section> .
-
-<urn:name:Bob.md>
-  <urn:token:about> <urn:name:Bob%23Some%20Section> .
 ```
 
 ### Expected triples from `Bob.md`
@@ -207,9 +206,8 @@ related :: [[Bob#Some Section]]
 
 Notes:
 
-- `[[Bob#Some Section]]` creates the concept node `<urn:name:Bob%23Some%20Section>` even though `Bob.md` has no matching heading.
+- `[[Bob#Some Section]]` creates an object reference to `<urn:name:Bob%23Some%20Section>` in the current file's triples.
 - The document node for `Bob.md` is always `<urn:name:Bob.md>`.
 - The top concept for `Bob.md` is always `<urn:name:Bob>`.
-- The document node for `Bob.md` should emit `urn:token:about <urn:name:Bob%23Some%20Section>` once that section concept is referenced and therefore materialized.
-- This means document-level `about` links are not only for locally headed sections; they can also be emitted for concept nodes that are materialized through cross-document references.
-- This is the tradeoff that avoids materializing every possible section in advance while preserving stable merged-graph behavior.
+- `Bob.md` does not emit `urn:token:about <urn:name:Bob%23Some%20Section>` unless `Bob.md` itself has a matching local heading.
+- Document-level `about` links are only for concepts introduced by local headings in that file.
