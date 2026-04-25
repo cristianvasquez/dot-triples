@@ -24,6 +24,7 @@ All inputs are assumed to already be trimmed by the caller. Leading or trailing 
 ## URI patterns
 
 ```
+urn:meta:{encodeURIComponent(value)}    metadata predicates
 urn:name:{encodeURIComponent(value)}    names
 urn:token:{encodeURIComponent(value)}   tokens
 urn:token:_                             untyped relation (sentinel)
@@ -46,6 +47,20 @@ Extracts the name string from a `NamedNode`.
 
 - Returns null if the term is not a `NamedNode` or does not use the `urn:name:` prefix
 - `NamedNode('urn:name:Alice%20Smith')` → `'Alice Smith'`
+
+### metaToURI(s)
+
+Converts a metadata key string to a `NamedNode` with scheme `urn:meta:`.
+
+- Throws if input is null, undefined, empty, or has leading/trailing whitespace
+- `'raw'` → `NamedNode('urn:meta:raw')`
+
+### metaFromURI(term)
+
+Extracts the metadata key string from a `NamedNode`.
+
+- Returns null if the term is not a `NamedNode` or does not use the `urn:meta:` prefix
+- `NamedNode('urn:meta:raw')` → `'raw'`
 
 ### tokenToURI(s)
 
@@ -78,7 +93,7 @@ Represents a relation that exists but has no stated type. `'_'` in text is treat
 
 ## Cross-namespace isolation
 
-`nameFromURI` always returns null for a token URI and vice versa. The two namespaces do not overlap.
+`nameFromURI`, `tokenFromURI`, and `metaFromURI` always return null outside their own namespace. The namespaces do not overlap.
 
 ## Invariants for property-based testing
 
@@ -105,6 +120,10 @@ Cross-namespace:
 ```
 nameFromURI(tokenToURI(s))  === null
 tokenFromURI(nameToURI(s))  === null
+metaFromURI(tokenToURI(s))  === null
+tokenFromURI(metaToURI(s))  === null
+nameFromURI(metaToURI(s))   === null
+metaFromURI(nameToURI(s))   === null
 ```
 
 Whitespace errors:

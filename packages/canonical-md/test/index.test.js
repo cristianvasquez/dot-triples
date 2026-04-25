@@ -7,6 +7,8 @@ import {
   fileURLToPath,
   getDocName,
   getNameFromPath,
+  metaFromURI,
+  metaToURI,
   nameFromURI,
   nameToURI,
   pathToFileURL,
@@ -30,6 +32,12 @@ test('nameToURI / nameFromURI round-trip', () => {
   }))
 })
 
+test('metaToURI / metaFromURI round-trip', () => {
+  fc.assert(fc.property(tokenArb, s => {
+    assert.equal(metaFromURI(metaToURI(s)), s)
+  }))
+})
+
 test('tokenToURI / tokenFromURI round-trip', () => {
   fc.assert(fc.property(tokenArb, s => {
     assert.equal(tokenFromURI(tokenToURI(s)), s)
@@ -40,6 +48,13 @@ test('nameToURI produces urn:name: URIs', () => {
   fc.assert(fc.property(nameArb, s => {
     assert.ok(nameToURI(s).value.startsWith('urn:name:'))
     assert.equal(nameToURI(s).termType, 'NamedNode')
+  }))
+})
+
+test('metaToURI produces urn:meta: URIs', () => {
+  fc.assert(fc.property(tokenArb, s => {
+    assert.ok(metaToURI(s).value.startsWith('urn:meta:'))
+    assert.equal(metaToURI(s).termType, 'NamedNode')
   }))
 })
 
@@ -68,6 +83,18 @@ test('cross-namespace isolation', () => {
   fc.assert(fc.property(nameArb, s => {
     assert.equal(tokenFromURI(nameToURI(s)), null)
   }))
+  fc.assert(fc.property(tokenArb, s => {
+    assert.equal(metaFromURI(tokenToURI(s)), null)
+  }))
+  fc.assert(fc.property(tokenArb, s => {
+    assert.equal(tokenFromURI(metaToURI(s)), null)
+  }))
+  fc.assert(fc.property(nameArb, s => {
+    assert.equal(nameFromURI(metaToURI(s)), null)
+  }))
+  fc.assert(fc.property(tokenArb, s => {
+    assert.equal(metaFromURI(nameToURI(s)), null)
+  }))
 })
 
 test('nameFromURI returns null for non-name terms', () => {
@@ -82,16 +109,33 @@ test('tokenFromURI returns null for non-token terms', () => {
   assert.equal(tokenFromURI(rdf.literal('part of')), null)
 })
 
+test('metaFromURI returns null for non-meta terms', () => {
+  assert.equal(metaFromURI(null), null)
+  assert.equal(metaFromURI(rdf.namedNode('https://example.com')), null)
+  assert.equal(metaFromURI(rdf.literal('line')), null)
+})
+
 test('nameToURI throws on null, undefined, empty', () => {
   assert.throws(() => nameToURI(null))
   assert.throws(() => nameToURI(undefined))
   assert.throws(() => nameToURI(''))
 })
 
+test('metaToURI throws on null, undefined, empty', () => {
+  assert.throws(() => metaToURI(null))
+  assert.throws(() => metaToURI(undefined))
+  assert.throws(() => metaToURI(''))
+})
+
 test('nameToURI throws on untrimmed input', () => {
   assert.throws(() => nameToURI('  Alice'))
   assert.throws(() => nameToURI('Alice  '))
   assert.throws(() => nameToURI(' Alice '))
+})
+
+test('metaToURI throws on untrimmed input', () => {
+  assert.throws(() => metaToURI('  line'))
+  assert.throws(() => metaToURI('line  '))
 })
 
 test('tokenToURI throws on untrimmed input', () => {

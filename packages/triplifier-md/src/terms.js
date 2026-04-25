@@ -1,5 +1,5 @@
 import rdf from 'rdf-ext'
-import { UNTYPED_TOKEN, getDocName, getNameFromPath, nameToURI, tokenToURI } from 'canonical-md'
+import { UNTYPED_TOKEN, getDocName, getNameFromPath, metaToURI, nameToURI, tokenToURI } from 'canonical-md'
 
 const CURIE = /^[a-zA-Z][\w-]*:[^\s]+$/
 const ABSOLUTE_IRI = /^[a-zA-Z][a-zA-Z\d+.-]*:[^\s]*$/
@@ -43,6 +43,10 @@ export function owningDocumentNodeForConceptName(conceptName) {
 
 export function predicateNode(key) {
   return tokenToURI(String(key).trim())
+}
+
+export function metaPredicateNode(key) {
+  return metaToURI(String(key).trim())
 }
 
 export function plainLiteralTerm(value) {

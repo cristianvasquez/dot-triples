@@ -4,6 +4,7 @@ import rdf from 'rdf-ext'
 // Keep this module standalone: no Node built-ins and no imports from other repo modules.
 
 const namespaces = {
+  meta: rdf.namespace('urn:meta:'),
   name: rdf.namespace('urn:name:'),
   token: rdf.namespace('urn:token:'),
 }
@@ -27,6 +28,21 @@ export function nameToURI(s) {
 export function nameFromURI(term) {
   if (!term || term.termType !== 'NamedNode') return null
   const base = namespaces.name().value
+  if (!term.value.startsWith(base)) return null
+  return decodeURIComponent(term.value.slice(base.length))
+}
+
+export function metaToURI(s) {
+  if (s == null || s === '') {
+    throw new Error('Meta key must not be null, undefined, or empty')
+  }
+  assertTrimmed(s)
+  return namespaces.meta[encodeURIComponent(s)]
+}
+
+export function metaFromURI(term) {
+  if (!term || term.termType !== 'NamedNode') return null
+  const base = namespaces.meta().value
   if (!term.value.startsWith(base)) return null
   return decodeURIComponent(term.value.slice(base.length))
 }

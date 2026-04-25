@@ -4,6 +4,7 @@ import {
   UNTYPED_TOKEN,
   documentNode,
   objectTerm,
+  metaPredicateNode,
   plainLiteralTerm,
   predicateNode,
   sectionConceptNode,
@@ -54,8 +55,8 @@ export function createTriplifyProcessor(options = {}) {
   const materializedConcepts = new Set()
   const labeledConcepts = new Set()
   const labeledUrls = new Set()
-  const outlineLines = []
 
+  let lineNumber = 0
   let frontmatterLines = []
   let inFrontmatter = false
   let atDocumentStart = true
@@ -92,9 +93,10 @@ export function createTriplifyProcessor(options = {}) {
     }
   }
 
-  function appendOutline(depth, title) {
-    const indent = '\t'.repeat(Math.max(0, depth - 1))
-    outlineLines.push(`${indent}* ${title}`)
+  function emitHeadingMeta(subject, rawLine, depth) {
+    writeQuad(subject, metaPredicateNode('raw'), rawLine, { plainObject: true })
+    writeQuad(subject, metaPredicateNode('depth'), String(depth), { plainObject: true })
+    writeQuad(subject, metaPredicateNode('line'), String(lineNumber), { plainObject: true })
   }
 
   function handleHeading(line) {
@@ -105,13 +107,12 @@ export function createTriplifyProcessor(options = {}) {
     const title = headingMatch[2].trim()
     if (!title) return true
 
-    appendOutline(depth, title)
-
     if (depth === 1) {
       if (!firstH1Seen) {
         firstH1Seen = true
         currentHeadingNode = null
         materializeLocalConcept(localTopConceptNode, title)
+        emitHeadingMeta(localTopConceptNode, line, depth)
         return true
       }
     }
@@ -119,6 +120,7 @@ export function createTriplifyProcessor(options = {}) {
     const headingNode = sectionConceptNode(options, title)
     currentHeadingNode = headingNode
     materializeLocalConcept(headingNode, title)
+    emitHeadingMeta(headingNode, line, depth)
     return true
   }
 
@@ -190,15 +192,9 @@ export function createTriplifyProcessor(options = {}) {
     handleMarkdownLinks(line)
   }
 
-  function emitOutlineIfNeeded() {
-    if (!outlineLines.length) return
-    writeQuad(localDocumentNode, predicateNode('outline'), outlineLines.join('\n'), {
-      plainObject: true
-    })
-  }
-
   return {
     writeLine(line) {
+      lineNumber++
       const normalizedLine = line.replace(/\r$/, '')
 
       if (atDocumentStart) {
@@ -241,7 +237,6 @@ export function createTriplifyProcessor(options = {}) {
         frontmatterLines = []
       }
 
-      emitOutlineIfNeeded()
     }
   }
 }

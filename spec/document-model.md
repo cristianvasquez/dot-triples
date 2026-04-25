@@ -35,7 +35,6 @@ nameToURI(name + '.md')
 ### What goes on the document node
 
 - All frontmatter key-value pairs, with keys resolved via `tokenToURI`
-- The outline literal (see below)
 - A link to each materialized concept node
 
 ### Links to materialized concepts
@@ -44,16 +43,6 @@ nameToURI(name + '.md')
 <documentNode>  urn:token:about  urn:name:Alice
 <documentNode>  urn:token:about  urn:name:Alice%23Skills
 ```
-
-### Outline
-
-A single literal capturing the header structure as an indented bullet list:
-
-```
-<documentNode>  urn:token:outline  "* Alice Smith\n\t* Skills\n\t* Friends"
-```
-
-Each heading becomes a `*` bullet. Indentation uses tabs: H1 gets no indent, H2 gets one tab, H3 gets two tabs, and so on. Purpose: rendering a table of contents. Not for RDF querying.
 
 ## Top concept node
 
@@ -137,6 +126,22 @@ expertise :: Python
 ```
 urn:name:Alice%23Skills  urn:token:expertise  "Python"
 ```
+
+### Heading source metadata
+
+Each materialized heading concept also carries the exact markdown heading line that created it, using the metadata namespace:
+
+```markdown
+## Skills
+```
+
+```
+urn:name:Alice%23Skills  urn:meta:raw    "## Skills"
+urn:name:Alice%23Skills  urn:meta:depth  "2"
+urn:name:Alice%23Skills  urn:meta:line   "3"
+```
+
+This is provenance metadata for reconstruction and diagnostics. It is not part of the domain model.
 
 ## Cross-document identity
 
