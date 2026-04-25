@@ -9,7 +9,7 @@ repo-group: rdf
 
 # [dot-triples](osg://repo/github.com/cristianvasquez/dot-triples)
 
-Tooling to produce and query RDF from markdown. 
+Tooling to produce and query RDF from markdown.
 
 - Packages
 	- [[canonical-md]]
