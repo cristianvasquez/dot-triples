@@ -96,7 +96,9 @@ export function createTriplifyProcessor(options = {}) {
 
   function emitFrontmatter(frontmatter) {
     for (const [key, value] of Object.entries(frontmatter)) {
-      writeQuad(localDocumentNode, predicateNode(key), value)
+      const mapped = options.mappings?.[key]
+      const predicate = mapped ? rdf.namedNode(mapped) : predicateNode(key)
+      writeQuad(localDocumentNode, predicate, value)
     }
   }
 
