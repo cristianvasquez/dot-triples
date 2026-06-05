@@ -22,7 +22,8 @@ export function mapQuad(quad, prefixes = PREFIXES) {
   return rdf.quad(
     mapTerm(quad.subject, prefixes),
     mapTerm(quad.predicate, prefixes),
-    mapTerm(quad.object, prefixes)
+    mapTerm(quad.object, prefixes),
+    quad.graph
   )
 }
 

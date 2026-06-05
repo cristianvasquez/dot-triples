@@ -1,4 +1,5 @@
 ---
+uuid: 02e36de5-f5e9-4b83-821c-0f1592d8599e
 repo-uri: osg://repo/github.com/cristianvasquez/dot-triples
 repo-name: sparql-md
 layout: node.js
@@ -32,4 +33,5 @@ const result = rewriteAndParseQuery(
 ```
 
 `__label__` rewrites to `<urn:token:label>` and `[[Linked Note]]` rewrites to
+
 `<urn:name:Linked%20Note>`.

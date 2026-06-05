@@ -2,7 +2,8 @@ import rdf from 'rdf-ext'
 import { UNTYPED_TOKEN, getDocName, getNameFromPath, metaToURI, nameToURI, tokenToURI } from 'canonical-md'
 
 const CURIE = /^[a-zA-Z][\w-]*:[^\s]+$/
-const ABSOLUTE_IRI = /^[a-zA-Z][a-zA-Z\d+.-]*:[^\s]*$/
+const ABSOLUTE_IRI = /^[a-zA-Z][a-zA-Z\d+.-]*:[^\s<>"{}|\\^`]*$/
+const INVALID_IRI_CHARS = /[\s<>"{}|\\^`]/
 
 export function resolveName(options = {}) {
   const explicitName = String(options.name ?? '').trim()
@@ -74,6 +75,9 @@ export function objectTerm(value) {
     }
 
     if (CURIE.test(trimmed) || ABSOLUTE_IRI.test(trimmed)) {
+      if (INVALID_IRI_CHARS.test(trimmed)) {
+        throw new Error(`Invalid IRI (contains forbidden characters): ${trimmed}`)
+      }
       return rdf.namedNode(trimmed)
     }
   }
@@ -82,7 +86,11 @@ export function objectTerm(value) {
 }
 
 export function urlNode(value) {
-  return rdf.namedNode(String(value).trim())
+  const iri = String(value).trim()
+  if (INVALID_IRI_CHARS.test(iri)) {
+    throw new Error(`Invalid IRI (contains forbidden characters): ${iri}`)
+  }
+  return rdf.namedNode(iri)
 }
 
 export function isAbsoluteIri(value) {

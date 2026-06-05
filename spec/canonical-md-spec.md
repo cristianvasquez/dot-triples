@@ -1,4 +1,5 @@
 ---
+uuid: 8cb4f1f5-0608-4091-b5e6-1216818d13ba
 repo-group: rdf
 tags: [spec/rdf]
 ---

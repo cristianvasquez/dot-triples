@@ -56,6 +56,21 @@ maintainer :: [[Bob]]
   assert.match(nt, /<urn:name:Project> <urn:token:maintainer> <urn:name:Bob> \./)
 })
 
+test('body fields apply option mappings like frontmatter fields', async () => {
+  const quads = triplify(`knows :: [[Bob]]
+title :: Example
+`, {
+    file: 'test.md',
+    mappings: {
+      knows: 'foaf:knows',
+      title: 'dcterms:title'
+    }
+  })
+
+  assert.equal(quads[0].predicate.value, 'foaf:knows')
+  assert.equal(quads[1].predicate.value, 'dcterms:title')
+})
+
 test('explicit name takes precedence over file-derived identity', async () => {
   const nt = await serializeQuads(triplify(`# Alice Smith
 role :: Product Manager
@@ -162,7 +177,7 @@ test('named references in heading text attach to the heading concept with the un
 `, { name: 'Alice', file: 'Alice.md' }))
 
   assert.match(nt, /<urn:name:Alice\.md> <urn:token:about> <urn:name:Alice%23Links%20with%20%5B%5BBob%5D%5D%20and%20%5Bsparql%5D> \./)
-  assert.match(nt, /<urn:name:Alice%23Links%20with%20%5B%5BBob%5D%5D%20and%20%5Bsparql%5D> <rdfs:label> "Links with \[\[Bob\]\] and \[sparql\]" \./)
+  assert.match(nt, /<urn:name:Alice%23Links%20with%20%5B%5BBob%5D%5D%20and%20%5Bsparql%5D> <rdfs:label> "Links with Bob and sparql" \./)
   assert.match(nt, /<urn:name:Alice%23Links%20with%20%5B%5BBob%5D%5D%20and%20%5Bsparql%5D> <urn:token:_> <urn:name:Bob> \./)
   assert.match(nt, /<urn:name:Alice%23Links%20with%20%5B%5BBob%5D%5D%20and%20%5Bsparql%5D> <urn:token:_> <urn:token:sparql> \./)
 })
@@ -230,6 +245,17 @@ test('mapping expands curies in any RDF term position', () => {
   assert.equal(mapped.subject.value, 'https://schema.org/Alice')
   assert.equal(mapped.predicate.value, 'https://schema.org/knows')
   assert.equal(mapped.object.value, 'https://schema.org/Person')
+})
+
+test('mapping preserves the input named graph', () => {
+  const mapped = mapQuad(rdf.quad(
+    rdf.namedNode('schema:Alice'),
+    rdf.namedNode('schema:knows'),
+    rdf.namedNode('schema:Person'),
+    rdf.namedNode('urn:my-graph')
+  ))
+
+  assert.equal(mapped.graph.value, 'urn:my-graph')
 })
 
 test('typed-literals upgrades plain literals in a later pipe', () => {

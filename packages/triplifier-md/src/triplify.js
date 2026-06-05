@@ -17,7 +17,11 @@ const RDFS_LABEL = rdf.namedNode('rdfs:label')
 const MARKDOWN_LINK = /\[([^\]]+)\]\(([^)\s]+)\)/g
 const WIKI_LINK = /\[\[([^\]]+)\]\]/g
 const TOKEN_REFERENCE = /\[([^\[\]]+)\](?!\()/g
-const NAMED_REFERENCE = /(^|[\s(>])([a-zA-Z][\w+.-]*:[^\s<>)\]},"']+)/g
+const NAMED_REFERENCE = /(^|[\s(>])([a-zA-Z][\w+.-]*:[^\s<>)\]},"'`\\^|{}]+)/g
+
+function extractPlainText(text) {
+  return text.replace(MARKDOWN_LINK, '$1').replace(WIKI_LINK, '$1').replace(TOKEN_REFERENCE, '$1')
+}
 
 function rangeOverlaps(ranges, start, end) {
   return ranges.some(([rangeStart, rangeEnd]) => start < rangeEnd && end > rangeStart)
@@ -120,7 +124,7 @@ export function createTriplifyProcessor(options = {}) {
       if (!firstH1Seen) {
         firstH1Seen = true
         currentHeadingNode = null
-        materializeLocalConcept(localTopConceptNode, title)
+        materializeLocalConcept(localTopConceptNode, extractPlainText(title))
         emitHeadingMeta(localTopConceptNode, line, depth)
         handleUnnamedNamedReferences(title, localTopConceptNode)
         return true
@@ -129,7 +133,7 @@ export function createTriplifyProcessor(options = {}) {
 
     const headingNode = sectionConceptNode(options, title)
     currentHeadingNode = headingNode
-    materializeLocalConcept(headingNode, title)
+    materializeLocalConcept(headingNode, extractPlainText(title))
     emitHeadingMeta(headingNode, line, depth)
     handleUnnamedNamedReferences(title, headingNode)
     return true
@@ -143,7 +147,9 @@ export function createTriplifyProcessor(options = {}) {
     const [, key, rawValue] = match
     const trimmedKey = key.trim()
     const parsedValue = parseFieldValue(rawValue)
-    writeQuad(currentSubject(), predicateNode(trimmedKey), parsedValue)
+    const mapped = options.mappings?.[trimmedKey]
+    const predicate = mapped ? rdf.namedNode(mapped) : predicateNode(trimmedKey)
+    writeQuad(currentSubject(), predicate, parsedValue)
 
     return true
   }
