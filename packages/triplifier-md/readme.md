@@ -5,7 +5,7 @@ tags: [repo/osg, package/rdf]
 repo-group: rdf
 ---
 
-# [triplifier-md](osg://repo/github.com/cristianvasquez/dot-triples)
+# triplifier-md
 
 `triplifier-md` turns Markdown into RDF quads and N-Triples.
 
