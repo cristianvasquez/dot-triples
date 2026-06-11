@@ -197,17 +197,28 @@ name :: Alice
   assert.doesNotMatch(nt, /<urn:name:Example> <urn:token:ignored> "value" \./)
 })
 
-test('triplify fails on unclosed fenced code blocks', () => {
-  assert.throws(
-    () => triplify(`# Example
+test('triplify auto-closes unclosed fenced code blocks at end of document', async () => {
+  const nt = await serializeQuads(triplify(`# Example
 
 \`\`\`sparql
 SELECT * WHERE {
   ?s ?p ?o .
 }
-`, { name: 'Example', file: 'Example.md' }),
-    /Unclosed fenced code block in Example\.md/
-  )
+`, { name: 'Example', file: 'Example.md' }))
+
+  assert.match(nt, /<urn:name:Example> <urn:code-block:sparql> "SELECT \* WHERE \{/)
+})
+
+test('triplify skips empty wikilinks and tokens without throwing', async () => {
+  const nt = await serializeQuads(triplify(`# Example
+
+See [[ ]] and [ ] here.
+
+ref :: [[ ]]
+`, { name: 'Example', file: 'Example.md' }))
+
+  assert.doesNotMatch(nt, /urn:name:%20*>/)
+  assert.match(nt, /<urn:name:Example> <urn:token:ref> "\[\[ \]\]" \./)
 })
 
 test('simple yaml parser supports dash lists', () => {

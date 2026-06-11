@@ -67,11 +67,17 @@ export function objectTerm(value) {
     const trimmed = value.trim()
 
     if (trimmed.startsWith('[[') && trimmed.endsWith(']]')) {
-      return nameToURI(trimmed.slice(2, -2).trim())
+      const name = trimmed.slice(2, -2).trim()
+      // Empty/whitespace-only wikilink (e.g. "[[ ]]") is not a reference;
+      // keep it as a plain literal rather than throwing on an empty name.
+      if (name) return nameToURI(name)
+      return rdf.literal(String(value))
     }
 
     if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
-      return tokenToURI(trimmed.slice(1, -1).trim())
+      const token = trimmed.slice(1, -1).trim()
+      if (token) return tokenToURI(token)
+      return rdf.literal(String(value))
     }
 
     if (CURIE.test(trimmed) || ABSOLUTE_IRI.test(trimmed)) {

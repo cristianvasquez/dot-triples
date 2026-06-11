@@ -175,7 +175,7 @@ export function createTriplifyProcessor(options = {}) {
 
     for (const match of line.matchAll(WIKI_LINK)) {
       const [, targetName] = match
-      if (!targetName) continue
+      if (!targetName || !targetName.trim()) continue
 
       const start = match.index
       const end = start + match[0].length
@@ -188,7 +188,7 @@ export function createTriplifyProcessor(options = {}) {
 
     for (const match of line.matchAll(TOKEN_REFERENCE)) {
       const [, tokenName] = match
-      if (!tokenName) continue
+      if (!tokenName || !tokenName.trim()) continue
 
       const start = match.index
       const end = start + match[0].length
@@ -201,7 +201,7 @@ export function createTriplifyProcessor(options = {}) {
 
     for (const match of line.matchAll(NAMED_REFERENCE)) {
       const value = match[2]
-      if (!value) continue
+      if (!value || !value.trim()) continue
 
       const start = match.index + match[1].length
       const end = start + value.length
@@ -282,8 +282,13 @@ export function createTriplifyProcessor(options = {}) {
 
     end() {
       if (inCodeFence) {
-        const location = options.file || options.sourceId || options.name || 'markdown input'
-        throw new Error(`Unclosed fenced code block in ${location}`)
+        // CommonMark auto-closes a fenced code block at end of document.
+        // Emit what we have rather than aborting the whole batch on one
+        // malformed file.
+        emitCodeBlock()
+        inCodeFence = false
+        codeFenceLanguage = null
+        codeFenceLines = []
       }
 
       if (inFrontmatter) {
