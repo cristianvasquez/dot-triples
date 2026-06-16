@@ -74,6 +74,7 @@ export function createTriplifyProcessor(options = {}) {
   let inCodeFence = false
   let codeFenceLanguage = null
   let codeFenceLines = []
+  let blockquoteLines = []
   let firstH1Seen = false
   let currentHeadingNode = null
 
@@ -222,10 +223,19 @@ export function createTriplifyProcessor(options = {}) {
     })
   }
 
+  function emitBlockquote() {
+    if (!blockquoteLines.length) return
+    writeQuad(currentSubject(), rdf.namedNode('urn:blockquote'), blockquoteLines.join('\n'), {
+      plainObject: true
+    })
+    blockquoteLines = []
+  }
+
   function processBodyLine(line) {
     const trimmedLine = line.trimStart()
 
     if (trimmedLine.startsWith('```')) {
+      emitBlockquote()
       if (inCodeFence) {
         emitCodeBlock()
         inCodeFence = false
@@ -244,6 +254,14 @@ export function createTriplifyProcessor(options = {}) {
       codeFenceLines.push(line)
       return
     }
+
+    const blockquoteMatch = line.match(/^\s*>\s?(.*)$/)
+    if (blockquoteMatch) {
+      blockquoteLines.push(blockquoteMatch[1])
+      return
+    }
+
+    emitBlockquote()
 
     if (handleHeading(line)) return
     if (handleField(line)) return
@@ -290,6 +308,8 @@ export function createTriplifyProcessor(options = {}) {
         codeFenceLanguage = null
         codeFenceLines = []
       }
+
+      emitBlockquote()
 
       if (inFrontmatter) {
         inFrontmatter = false

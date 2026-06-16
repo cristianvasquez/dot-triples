@@ -209,6 +209,31 @@ SELECT * WHERE {
   assert.match(nt, /<urn:name:Example> <urn:code-block:sparql> "SELECT \* WHERE \{/)
 })
 
+test('blockquote lines are preserved as a raw literal on the current subject', async () => {
+  const nt = await serializeQuads(triplify(`# Example
+
+> The topic
+`, { name: 'Example', file: 'Example.md' }))
+
+  assert.match(nt, /<urn:name:Example> <urn:blockquote> "The topic" \./)
+})
+
+test('contiguous blockquote lines become one multiline literal and do not parse fields', async () => {
+  const nt = await serializeQuads(triplify(`# Example
+
+> first line
+> role :: Lead
+> [[Bob]]
+
+name :: Alice
+`, { name: 'Example', file: 'Example.md' }))
+
+  assert.match(nt, /<urn:name:Example> <urn:blockquote> "first line\\nrole :: Lead\\n\[\[Bob\]\]" \./)
+  assert.doesNotMatch(nt, /<urn:name:Example> <urn:token:role> "Lead" \./)
+  assert.doesNotMatch(nt, /<urn:name:Example> <urn:token:_> <urn:name:Bob> \./)
+  assert.match(nt, /<urn:name:Example> <urn:token:name> "Alice" \./)
+})
+
 test('triplify skips empty wikilinks and tokens without throwing', async () => {
   const nt = await serializeQuads(triplify(`# Example
 
