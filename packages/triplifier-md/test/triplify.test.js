@@ -146,6 +146,20 @@ related :: [[Bob#Some Section]]
   assert.doesNotMatch(nt, /<urn:name:Bob\.md> <urn:token:about> <urn:name:Bob%23Some%20Section> \./)
 })
 
+test('hash-only wikilinks resolve to the linked heading name', async () => {
+  const nt = await serializeQuads(triplify(`# My Device
+
+- is a :: [[Things I own]]
+
+## Wifi
+
+- is a :: [[#My Device]]
+`, { name: 'My Device', file: 'My Device.md' }))
+
+  assert.match(nt, /<urn:name:My%20Device%23Wifi> <urn:token:is%20a> <urn:name:My%20Device> \./)
+  assert.doesNotMatch(nt, /<urn:name:My%20Device%23Wifi> <urn:token:is%20a> <urn:name:%23My%20Device> \./)
+})
+
 test('markdown links in prose attach to the current subject and label the url node', async () => {
   const nt = await serializeQuads(triplify(`# Alice
 

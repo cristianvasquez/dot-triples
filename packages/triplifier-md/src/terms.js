@@ -54,6 +54,12 @@ export function plainLiteralTerm(value) {
   return rdf.literal(String(value))
 }
 
+export function normalizeWikiConceptName(name) {
+  const trimmed = String(name).trim()
+  if (trimmed.startsWith('#')) return trimmed.slice(1).trim()
+  return trimmed
+}
+
 export function objectTerm(value) {
   if (Array.isArray(value)) {
     return value.map(item => objectTerm(item))
@@ -67,7 +73,7 @@ export function objectTerm(value) {
     const trimmed = value.trim()
 
     if (trimmed.startsWith('[[') && trimmed.endsWith(']]')) {
-      const name = trimmed.slice(2, -2).trim()
+      const name = normalizeWikiConceptName(trimmed.slice(2, -2))
       // Empty/whitespace-only wikilink (e.g. "[[ ]]") is not a reference;
       // keep it as a plain literal rather than throwing on an empty name.
       if (name) return nameToURI(name)
@@ -106,7 +112,7 @@ export function isAbsoluteIri(value) {
 export function wikiConceptName(value) {
   const trimmed = String(value).trim()
   if (!trimmed.startsWith('[[') || !trimmed.endsWith(']]')) return null
-  return trimmed.slice(2, -2).trim()
+  return normalizeWikiConceptName(trimmed.slice(2, -2))
 }
 
 export { UNTYPED_TOKEN }
