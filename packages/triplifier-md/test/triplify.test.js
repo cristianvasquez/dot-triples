@@ -160,6 +160,20 @@ test('hash-only wikilinks resolve to the linked heading name', async () => {
   assert.doesNotMatch(nt, /<urn:name:My%20Device%23Wifi> <urn:token:is%20a> <urn:name:%23My%20Device> \./)
 })
 
+test('wikilink alias and image-size suffix do not leak into the concept identifier', async () => {
+  const nt = await serializeQuads(triplify(`# Alice
+
+sees :: [[Bob|Bobby]]
+shows :: [[Pasted image 20260610103220.png|411]]
+scoped :: [[Bob#Some Section|Display]]
+`, { name: 'Alice', file: 'Alice.md' }))
+
+  assert.match(nt, /<urn:name:Alice> <urn:token:sees> <urn:name:Bob> \./)
+  assert.match(nt, /<urn:name:Alice> <urn:token:shows> <urn:name:Pasted%20image%2020260610103220\.png> \./)
+  assert.match(nt, /<urn:name:Alice> <urn:token:scoped> <urn:name:Bob%23Some%20Section> \./)
+  assert.doesNotMatch(nt, /%7C/)
+})
+
 test('markdown links in prose attach to the current subject and label the url node', async () => {
   const nt = await serializeQuads(triplify(`# Alice
 

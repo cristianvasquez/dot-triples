@@ -56,8 +56,13 @@ export function plainLiteralTerm(value) {
 
 export function normalizeWikiConceptName(name) {
   const trimmed = String(name).trim()
-  if (trimmed.startsWith('#')) return trimmed.slice(1).trim()
-  return trimmed
+  // Obsidian wikilinks/embeds allow a trailing display alias or image size
+  // after `|` (e.g. [[Note|Alias]], ![[image.png|411]]). The link target is
+  // the part before the first `|`; the alias/size is presentation only and
+  // must not leak into the concept identifier.
+  const target = trimmed.split('|', 1)[0].trim()
+  if (target.startsWith('#')) return target.slice(1).trim()
+  return target
 }
 
 export function objectTerm(value) {
