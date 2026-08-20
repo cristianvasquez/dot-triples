@@ -2,3 +2,8 @@ node_modules/
 intent
 journal
 .*
+!.github/
+.github/*
+!.github/workflows/
+.github/workflows/*
+!.github/workflows/*.yml

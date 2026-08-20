@@ -1,13 +1,39 @@
 {
   "name": "sparql-md",
   "version": "0.1.0",
+  "description": "SPARQL rewriting helpers for canonical Markdown RDF conventions",
   "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cristianvasquez/dot-triples.git",
+    "directory": "packages/sparql-md"
+  },
+  "homepage": "https://github.com/cristianvasquez/dot-triples/tree/main/packages/sparql-md#readme",
+  "bugs": {
+    "url": "https://github.com/cristianvasquez/dot-triples/issues"
+  },
+  "keywords": [
+    "rdf",
+    "markdown",
+    "sparql"
+  ],
+  "files": [
+    "src"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "scripts": {
     "test": "node --test"
   },
   "dependencies": {
     "canonical-md": "workspace:*",
-    "sparqljs": "^3.7.3"
+    "sparqljs": "^3.7.4"
   },
   "exports": {
     ".": "./src/index.js",

@@ -1,7 +1,33 @@
 {
   "name": "canonical-md",
   "version": "0.1.0",
+  "description": "Canonical RDF naming helpers for Markdown documents and tokens",
   "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cristianvasquez/dot-triples.git",
+    "directory": "packages/canonical-md"
+  },
+  "homepage": "https://github.com/cristianvasquez/dot-triples/tree/main/packages/canonical-md#readme",
+  "bugs": {
+    "url": "https://github.com/cristianvasquez/dot-triples/issues"
+  },
+  "keywords": [
+    "rdf",
+    "markdown",
+    "uri"
+  ],
+  "files": [
+    "src"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "exports": {
     ".": "./src/index.js"
   },
@@ -12,6 +38,6 @@
     "rdf-ext": "^2.6.0"
   },
   "devDependencies": {
-    "fast-check": "^4.7.0"
+    "fast-check": "^4.9.0"
   }
 }

@@ -1,5 +1,5 @@
 ---
-uuid: a5f6c8bc-fac6-4478-a837-ffc17e1f0b39
+uuid: 6376f05a-c670-4ccb-9f68-a08f26d7ea59
 repo-uri: osg://repo/github.com/cristianvasquez/dot-triples
 repo-name: dot-triples
 layout: node.js
@@ -11,7 +11,9 @@ repo-group: rdf
 
 Tooling to produce and query RDF from markdown.
 
-It's oriented to emit lexical and document representations. I map semantics afterwards with [[rdf-cli]].
+This library produces triples but does not take care of semantics. One can say semantics are deferred: emits urn:token:/urn:name:, maps later via CONSTRUCT statements.
+
+Other critical part of the toolkit is [[rdf-cli]].
 
 - [[canonical-md]] declare all namespaces used in the [[document-model]].
 - [[sparql-md]] knows how to rewrite to standard SPARQL queries.

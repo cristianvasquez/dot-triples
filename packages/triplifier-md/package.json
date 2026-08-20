@@ -2,7 +2,33 @@
   "name": "triplifier-md",
   "version": "0.1.0",
   "type": "module",
-  "description": "Minimal markdown to N-Triples triplifier for frontmatter and Obsidian-style :: fields",
+  "description": "Convert Markdown frontmatter, headings, and Obsidian-style fields to RDF quads and N-Triples",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cristianvasquez/dot-triples.git",
+    "directory": "packages/triplifier-md"
+  },
+  "homepage": "https://github.com/cristianvasquez/dot-triples/tree/main/packages/triplifier-md#readme",
+  "bugs": {
+    "url": "https://github.com/cristianvasquez/dot-triples/issues"
+  },
+  "keywords": [
+    "rdf",
+    "markdown",
+    "obsidian",
+    "n-triples"
+  ],
+  "files": [
+    "src"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "bin": {
     "triplify": "./src/cli.js"
   },
