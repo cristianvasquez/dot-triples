@@ -1,6 +1,6 @@
 {
   "name": "sparql-md",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "SPARQL rewriting helpers for canonical Markdown RDF conventions",
   "type": "module",
   "license": "MIT",
