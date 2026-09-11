@@ -5,118 +5,66 @@ tags: [spec/rdf]
 
 # document-model
 
-## Two kinds of nodes
+The SHACL contract for this model is `shapes/document.ttl` in [model](osg://repo/local:e8f91724f0402986bb4471229a092c12a0fdae49), together with `shapes/resource.ttl`. This page says how Markdown maps onto it. `canonical-md` exports the vocabulary as `vocab` and the naming helpers.
 
-A markdown file produces two kinds of nodes in the graph:
+## Three kinds of nodes
 
-Document node: the file itself. It holds frontmatter metadata and exists for provenance. It links to each materialized concept via `urn:token:about`.
+A Markdown file produces three kinds of nodes.
 
-Concept nodes: the things described inside the file. They connect to concept nodes in other documents. They do not carry frontmatter. One concept node is the top concept of the document; the rest are heading concepts materialized from headings. If parent-child relations matter, they must be written explicitly in markdown as normal fields.
+**The file** is a `document:File`. It holds frontmatter and says which notes and headings it materialised, with `schema:about`. Its IRI is `urn:name:<name>.md` from this library; a wrapping triplifier may rewrite it to a `file://` or `obsidian://` URI. No shape constrains that IRI.
 
-These are distinct nodes in the graph with distinct IRIs.
+**The note** is `urn:name:<name>`, a `resource:Resource`. It is what `[[name]]` resolves to, from any file. The first `#` heading materialises it and sets its `rdfs:label`.
 
-## Document node
+**A heading** is `urn:name:<name>%23<heading>`, a `resource:ResourceReference` that has an IRI. Its `resource:source` is the note. Its selectors say which part: an `oa:FragmentSelector` with the heading text under the Obsidian link syntax is its identity; an RFC 5147 line fragment says where it is; an `oa:TextQuoteSelector` with the heading line says what it says.
 
-Triplification takes:
+Fields, references and parts attach to the note or heading they appear under. The file carries only frontmatter and `schema:about`.
 
-- `name`: the canonical note identity
-- `file`: optional source filename or path
+## Names
 
-If both are given, `name` wins. If `name` is absent and `file` is given, `name` is derived with `getNameFromPath(file)`.
+Triplification takes `name`, the canonical note identity, or `file`, from which `name` is derived with `getNameFromPath`. `name` wins when both are given.
 
-The document node represents the file as a document. Its IRI is always derived from `name`:
+Names are exact and reversible: `urn:name:<encodeURIComponent(name)>`. Case is preserved. A link must match the file's casing to resolve to the same IRI. There is no normalisation, so an IRI decodes back to the text that produced it.
 
-```text
-nameToURI(name + '.md')
-```
+A heading name is `<note>#<heading>`. `splitHeadingName` splits it at the first `#`. Depth is not encoded and repeated headings merge: `## Advanced` and `### Advanced` in `Alice.md` are one IRI, `urn:name:Alice%23Advanced`, with one line selector per occurrence.
 
-`name = 'Alice'` → `urn:name:Alice.md`
-
-### What goes on the document node
-
-- All frontmatter key-value pairs, with keys resolved via `tokenToURI`
-- A link to each materialized concept node
-
-### Links to materialized concepts
+## The file
 
 ```
-<documentNode>  urn:token:about  urn:name:Alice
-<documentNode>  urn:token:about  urn:name:Alice%23Skills
+<urn:name:Alice.md>  rdf:type         document:File
+<urn:name:Alice.md>  urn:token:kind   "person"        # any frontmatter key
+<urn:name:Alice.md>  schema:about     <urn:name:Alice>
+<urn:name:Alice.md>  schema:about     <urn:name:Alice%23Skills>
 ```
 
-## Top concept node
+Frontmatter keys the model names go to standard predicates; every other key is `urn:token:<key>`:
 
-One per document. Its IRI is always derived from `name`:
+| Key | Predicate |
+|---|---|
+| `title` | `rdfs:label` |
+| `tags` | `schema:keywords`, one value per tag |
+| `created` | `dct:created` |
+| `modified` | `dct:modified` |
 
-```
-nameToURI(name)
-```
+`options.mappings` overrides these and applies to body fields too.
 
-`name = 'Alice'` → `urn:name:Alice`
+Body fields before the first `#` heading attach to the file, since no note exists yet.
 
-Case is preserved exactly. `[[Alice]]` in any other file must use the same casing to resolve to the same IRI.
-
-### First H1 materializes the top concept
-
-The first `#` heading materializes the top concept already implied by `name` and sets `rdfs:label` from the heading text:
+## The note
 
 ```markdown
 # Alice Smith
-```
-
-```
-urn:name:Alice  rdfs:label  "Alice Smith"
-```
-
-The top concept is just another concept node. The document node links to it with `urn:token:about`.
-
-Any later `#` heading in the same file is treated like any other heading and materializes a heading concept with `#` in the concept name. Only the first H1 is special.
-
-### Body-level fields
-
-Inline fields that appear in the document body before the first later heading attach to the current document-level subject. If an H1 has materialized the top concept, they attach to the top concept:
-
-```markdown
-# Alice Smith
-
 role :: Product Manager
 ```
 
 ```
-urn:name:Alice  urn:token:role  "Product Manager"
+<urn:name:Alice>  rdf:type    resource:Resource
+<urn:name:Alice>  rdfs:label  "Alice Smith"
+<urn:name:Alice>  urn:token:role  "Product Manager"
 ```
 
-## Heading concept nodes
+Only the first H1 is the note. Any later `#` heading is a heading like `##`.
 
-All headings after the first H1 create heading concept nodes. This includes later H1 headings and all headings at depth H2 through H6. The IRI is flat regardless of heading depth:
-
-```
-nameToURI(name + '#' + headingText)
-```
-
-`## Skills` in `Alice.md`:
-
-```
-nameToURI('Alice#Skills')  →  urn:name:Alice%23Skills
-```
-
-`# Advanced` after the first H1 in `Alice.md`:
-
-```
-nameToURI('Alice#Advanced')  →  urn:name:Alice%23Advanced
-```
-
-`### Advanced` in `Alice.md`:
-
-```
-nameToURI('Alice#Advanced')  →  urn:name:Alice%23Advanced
-```
-
-Depth is not encoded. `# Advanced` after the first H1, `## Advanced`, and `### Advanced` in the same file all produce the same IRI. Repeated headings with the same text in the same file also produce the same IRI. This merge is intentional. If structure matters, look at the document. This mirrors Obsidian's `[[Alice#Skills]]` link syntax, where `#` is part of the name string and `encodeURIComponent` encodes it as `%23`.
-
-### Fields under a heading
-
-Inline fields attach to the current heading concept:
+## A heading
 
 ```markdown
 ## Skills
@@ -124,106 +72,86 @@ expertise :: Python
 ```
 
 ```
-urn:name:Alice%23Skills  urn:token:expertise  "Python"
+<urn:name:Alice%23Skills>  rdf:type          resource:ResourceReference
+<urn:name:Alice%23Skills>  rdfs:label        "Skills"
+<urn:name:Alice%23Skills>  resource:source   <urn:name:Alice>
+<urn:name:Alice%23Skills>  resource:selector [ a oa:FragmentSelector ; rdf:value "Skills" ; dct:conformsTo <https://obsidian.md/help/links> ]
+<urn:name:Alice%23Skills>  resource:selector [ a oa:FragmentSelector ; rdf:value "line=2,3" ; dct:conformsTo <http://tools.ietf.org/rfc/rfc5147> ]
+<urn:name:Alice%23Skills>  resource:selector [ a oa:TextQuoteSelector ; oa:exact "## Skills" ]
+<urn:name:Alice%23Skills>  urn:token:expertise  "Python"
 ```
 
-### Heading source metadata
-
-Each materialized heading concept also carries the exact markdown heading line that created it, using the metadata namespace:
-
-```markdown
-## Skills
-```
-
-```
-urn:name:Alice%23Skills  urn:meta:raw    "## Skills"
-urn:name:Alice%23Skills  urn:meta:depth  "2"
-urn:name:Alice%23Skills  urn:meta:line   "3"
-```
-
-This is provenance metadata for reconstruction and diagnostics. It is not part of the domain model.
+RFC 5147 counts line positions from 0, so a heading on 1-based line 3 is `line=2,3`. `lineRange(first, last)` in `canonical-md` builds the value. Identical heading lines are quoted once per IRI.
 
 ## Cross-document identity
 
-Concept nodes connect across documents because `[[Name]]` and `[[Name#Section]]` resolve via `nameToURI` to the same IRIs that filenames produce:
+`[[Alice]]` resolves to `urn:name:Alice` and `[[Alice#Skills]]` to `urn:name:Alice%23Skills`, the same IRIs the owning file produces. Files are triplified independently in any order and the merged graph is the same.
 
-```
-[[Alice]]          →  nameToURI('Alice')          →  urn:name:Alice
-[[Alice#Skills]]   →  nameToURI('Alice#Skills')   →  urn:name:Alice%23Skills
-```
+A heading link carries a name and a fragment, which is all a heading's identity takes. So any file that links `[[Bob#Bio]]` emits the reference's type, source and Obsidian fragment selector for `urn:name:Bob%23Bio`. It does not emit `schema:about` for it, does not type `urn:name:Bob`, and does not know Bob's line numbers: the owning file adds those.
 
-Files can be triplified independently in any order. The merged graph is identical regardless of order. No coordination between files is required.
+`[[#Skills]]` resolves within the current note to `urn:name:<note>%23Skills`. `[[#<note name>]]` and `[[#<first H1 text>]]` resolve to the note itself.
 
-The triplifier only emits `urn:token:about` for concepts introduced by local headings in the current file. A wiki link such as `[[Bob]]` or `[[Bob#Skills]]` contributes an object IRI to the current triple, but it does not materialize `Bob.md` or add `urn:token:about` triples to any other document. Other files are responsible for emitting their own headings when they are triplified.
+## Fields
 
-## Field predicates
+All inline field keys go through `tokenToURI`. No `rdf:type` from fields; type assignment happens in downstream SPARQL CONSTRUCTs. The `rdf:type` values this library emits are the structural ones the model names: `document:File`, `resource:Resource`, `resource:ResourceReference`, the selector classes, and the part kinds.
 
-All inline field keys go through `tokenToURI`. No MAPPINGS table. No `rdf:type` auto-mapping.
+| Syntax | Result |
+|---|---|
+| `[[Name]]` | `urn:name:Name` |
+| `[[Name#Section]]` | `urn:name:Name%23Section`, described as above |
+| `[[Name\|Alias]]`, `![[img.png\|411]]` | the alias or size is dropped |
+| `[value]` | `urn:token:value` |
+| CURIE `schema:Person` | `schema:Person`, expanded later |
+| Absolute IRI | the IRI |
+| plain text | a literal, typed later |
 
-```markdown
-knows :: [[Bob]]
-born :: 1990
-transport :: [walk]
-```
+## References in prose
 
-```
-urn:name:Alice  urn:token:knows  urn:name:Bob
-urn:name:Alice  urn:token:born   "1990"
-urn:name:Alice  urn:token:transport  urn:token:walk
-```
-
-The triplifier does not know about `rdf:type`. Type assignments happen in downstream SPARQL CONSTRUCTs.
-
-`rdfs:label` is the only predicate emitted without `tokenToURI`. It appears in three places only:
-
-- first H1 heading → top concept label
-- later headings → heading concept label
-- URL nodes from `[label](uri)` syntax
-
-## Field objects
-
-| Syntax                     | Result                                                  |
-| -------------------------- | ------------------------------------------------------- |
-| `[[Name]]`                 | `nameToURI('Name')` → `urn:name:Name`                   |
-| `[[Name#Section]]`         | `nameToURI('Name#Section')` → `urn:name:Name%23Section` |
-| [value]                    | tokenToURI('value') -> urn:token:value                  |
-| CURIE `schema:Person`      | `rdf.namedNode('schema:Person')` — expanded later       |
-| Absolute IRI `https://...` | `rdf.namedNode('https://...')`                          |
-| plain text                 | `rdf.literal('value')`                                  |
-
-## Named reference extraction from prose
-
-Named references in prose emit `urn:token:_` on the current subject.
-The same extraction also runs on heading text after the heading concept is materialized, so references in `#` or `##` titles hang from that heading concept.
-
-Supported forms:
-
-- `[label](uri)` markdown links
-- `[[Name]]` and `[[Name#Section]]` wiki links
-- `[value]` token references
-- bare CURIE or absolute IRI values such as `schema:Person` or `https://example.com/spec`
+Named references in prose emit `dct:references` on the current subject. The same extraction runs on heading text.
 
 ```markdown
 See [the spec](https://example.com/spec), [[Bob]], [sparql], and schema:Person.
 ```
 
 ```
-urn:name:Alice%23Skills  urn:token:_  <https://example.com/spec>
-urn:name:Alice%23Skills  urn:token:_  urn:name:Bob
-urn:name:Alice%23Skills  urn:token:_  urn:token:sparql
-urn:name:Alice%23Skills  urn:token:_  schema:Person
+<urn:name:Alice%23Skills>  dct:references  <https://example.com/spec>
+<urn:name:Alice%23Skills>  dct:references  <urn:name:Bob>
+<urn:name:Alice%23Skills>  dct:references  <urn:token:sparql>
+<urn:name:Alice%23Skills>  dct:references  <schema:Person>
 <https://example.com/spec>  rdfs:label  "the spec"
 ```
 
-Predicate on the current heading concept is `urn:token:_` (UNTYPED_TOKEN). The label triple is emitted only when a label is present in the `[label](uri)` syntax.
+An embed `![[photo.png]]` is a reference to `urn:name:photo.png`. Resolving it to an image is a wrapping triplifier's job.
+
+## Parts: code blocks and blockquotes
+
+A fenced code block or a contiguous blockquote is a part of the note, attached to the current subject with `schema:hasPart`. It is a `resource:ResourceReference` whose source is the note, with a line fragment for the location and a text quote for the content, typed by kind.
+
+```markdown
+```js
+const x = 1
+```
+```
+
+```
+<urn:name:Alice%23Skills>  schema:hasPart  _:b
+_:b  rdf:type  resource:ResourceReference, schema:SoftwareSourceCode
+_:b  resource:source  <urn:name:Alice>
+_:b  resource:selector  [ a oa:FragmentSelector ; rdf:value "line=4,6" ; dct:conformsTo <http://tools.ietf.org/rfc/rfc5147> ]
+_:b  resource:selector  [ a oa:TextQuoteSelector ; oa:exact "const x = 1" ]
+_:b  schema:programmingLanguage  "js"
+```
+
+The line range covers the fence lines; the quote is the content between them. A blockquote is `schema:Quotation` with no language. Neither parses fields or references.
 
 ## What is gone
 
-- `urn:property:` namespace: dead. All predicates go through `tokenToURI`.
-- MAPPINGS table in `terms.js`: removed.
-- `rdf:type` in the triplifier: removed entirely.
-- `terms.js` as currently written: obsolete. Replaced by `nameToURI` and `tokenToURI` from `canonical-md`.
+- `urn:meta:raw`, `urn:meta:depth`, `urn:meta:line`: replaced by the line and quote selectors. Depth is the count of `#` in the quoted line.
+- `urn:token:about`: replaced by `schema:about`.
+- `urn:token:_`: replaced by `dct:references`.
+- `urn:code-block:<lang>` and `urn:blockquote`: replaced by parts.
+- `UNTYPED_TOKEN`: `tokenToURI` throws on an empty token, as `nameToURI` does.
 
-## What is explicitly deferred
+## What is deferred
 
-- SPARQL CONSTRUCTs for `rdf:type`, `uri:` mapping, CURIE expansion.
+- SPARQL CONSTRUCTs for domain `rdf:type`, the frontmatter `uri:` key, and CURIE expansion of `urn:token:` predicates.

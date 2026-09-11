@@ -46,18 +46,19 @@ type :: schema:Person
 
 ## Behavior
 
-- A Markdown file produces a document node and concept nodes.
-- If `name` is absent and `file` is present, the canonical note name is derived via `getNameFromPath(file)` from `canonical-md`.
-- The document node is `urn:name:<name>.md`.
-- The top concept node is `urn:name:<name>`.
-- `##` and deeper headings materialize section concept nodes like `urn:name:<name>%23Section`.
-- Properties before the first section heading attach to the document node until the first `#` heading materializes the top concept.
-- Properties inside sections attach to that section concept.
-- `[[Wiki Links]]` become `urn:name:` IRIs.
-- Default predicates use `urn:token:`.
+Output follows the document domain of `@osg/model` (`shapes/document.ttl`); see [[document-model]].
+
+- A Markdown file produces a file node, a note node and heading nodes.
+- If `name` is absent and `file` is present, the note name is derived via `getNameFromPath(file)` from `canonical-md`.
+- The file is `urn:name:<name>.md`, a `document:File`, and lists what it materialised with `schema:about`.
+- The note is `urn:name:<name>`, a `resource:Resource`, materialised by the first `#` heading.
+- Later headings are `urn:name:<name>%23Heading`, references into the note: source, an Obsidian fragment selector, a line-range selector and a quote of the heading line.
+- Fields before the first `#` heading attach to the file; fields under a heading attach to that heading.
+- `[[Wiki Links]]` become `urn:name:` IRIs; a `[[Note#Heading]]` link also emits the heading's source and fragment selector.
+- Field predicates use `urn:token:`; prose references use `dct:references`.
 - Known CURIEs are preserved during parsing and expanded later.
-- `label` and `title` stay plain string literals.
-- Fenced code blocks suppress field parsing and emit `urn:code-block:<language>` triples.
+- `title`, `tags`, `created` and `modified` frontmatter keys map to `rdfs:label`, `schema:keywords`, `dct:created`, `dct:modified`.
+- Fenced code blocks and blockquotes are parts: references with a line range and a quote, typed `schema:SoftwareSourceCode` or `schema:Quotation`.
 
 ## Pipeline
 

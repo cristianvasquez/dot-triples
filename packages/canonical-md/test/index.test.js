@@ -3,38 +3,33 @@ import assert from 'node:assert/strict'
 import * as fc from 'fast-check'
 import rdf from 'rdf-ext'
 import {
-  UNTYPED_TOKEN,
+  FRONTMATTER_TERMS,
   fileURLToPath,
   getDocName,
   getNameFromPath,
-  metaFromURI,
-  metaToURI,
+  lineRange,
   nameFromURI,
   nameToURI,
   pathToFileURL,
+  splitHeadingName,
   tokenFromURI,
   tokenToLiteral,
   tokenToURI,
+  vocab,
 } from '../src/index.js'
 
-// Arbitrary: trimmed single-line non-empty string, not '_'
+// Arbitrary: trimmed single-line non-empty string
 const nameArb = fc.string({ unit: 'grapheme', minLength: 1 }).filter(
   s => s === s.trim() && s.length > 0 && !s.includes('\n')
 )
 
 const tokenArb = fc.string({ unit: 'grapheme', minLength: 1 }).filter(
-  s => s === s.trim() && s.length > 0 && !s.includes('\n') && s !== '_'
+  s => s === s.trim() && s.length > 0 && !s.includes('\n')
 )
 
 test('nameToURI / nameFromURI round-trip', () => {
   fc.assert(fc.property(nameArb, s => {
     assert.equal(nameFromURI(nameToURI(s)), s)
-  }))
-})
-
-test('metaToURI / metaFromURI round-trip', () => {
-  fc.assert(fc.property(tokenArb, s => {
-    assert.equal(metaFromURI(metaToURI(s)), s)
   }))
 })
 
@@ -51,29 +46,11 @@ test('nameToURI produces urn:name: URIs', () => {
   }))
 })
 
-test('metaToURI produces urn:meta: URIs', () => {
-  fc.assert(fc.property(tokenArb, s => {
-    assert.ok(metaToURI(s).value.startsWith('urn:meta:'))
-    assert.equal(metaToURI(s).termType, 'NamedNode')
-  }))
-})
-
 test('tokenToURI produces urn:token: URIs', () => {
   fc.assert(fc.property(tokenArb, s => {
     assert.ok(tokenToURI(s).value.startsWith('urn:token:'))
     assert.equal(tokenToURI(s).termType, 'NamedNode')
   }))
-})
-
-test('UNTYPED_TOKEN for null, undefined, empty, _', () => {
-  assert.equal(tokenToURI(null), UNTYPED_TOKEN)
-  assert.equal(tokenToURI(undefined), UNTYPED_TOKEN)
-  assert.equal(tokenToURI(''), UNTYPED_TOKEN)
-  assert.equal(tokenToURI('_'), UNTYPED_TOKEN)
-})
-
-test('tokenFromURI returns null for UNTYPED_TOKEN', () => {
-  assert.equal(tokenFromURI(UNTYPED_TOKEN), null)
 })
 
 test('cross-namespace isolation', () => {
@@ -82,18 +59,6 @@ test('cross-namespace isolation', () => {
   }))
   fc.assert(fc.property(nameArb, s => {
     assert.equal(tokenFromURI(nameToURI(s)), null)
-  }))
-  fc.assert(fc.property(tokenArb, s => {
-    assert.equal(metaFromURI(tokenToURI(s)), null)
-  }))
-  fc.assert(fc.property(tokenArb, s => {
-    assert.equal(tokenFromURI(metaToURI(s)), null)
-  }))
-  fc.assert(fc.property(nameArb, s => {
-    assert.equal(nameFromURI(metaToURI(s)), null)
-  }))
-  fc.assert(fc.property(tokenArb, s => {
-    assert.equal(metaFromURI(nameToURI(s)), null)
   }))
 })
 
@@ -109,33 +74,16 @@ test('tokenFromURI returns null for non-token terms', () => {
   assert.equal(tokenFromURI(rdf.literal('part of')), null)
 })
 
-test('metaFromURI returns null for non-meta terms', () => {
-  assert.equal(metaFromURI(null), null)
-  assert.equal(metaFromURI(rdf.namedNode('https://example.com')), null)
-  assert.equal(metaFromURI(rdf.literal('line')), null)
-})
-
 test('nameToURI throws on null, undefined, empty', () => {
   assert.throws(() => nameToURI(null))
   assert.throws(() => nameToURI(undefined))
   assert.throws(() => nameToURI(''))
 })
 
-test('metaToURI throws on null, undefined, empty', () => {
-  assert.throws(() => metaToURI(null))
-  assert.throws(() => metaToURI(undefined))
-  assert.throws(() => metaToURI(''))
-})
-
 test('nameToURI throws on untrimmed input', () => {
   assert.throws(() => nameToURI('  Alice'))
   assert.throws(() => nameToURI('Alice  '))
   assert.throws(() => nameToURI(' Alice '))
-})
-
-test('metaToURI throws on untrimmed input', () => {
-  assert.throws(() => metaToURI('  line'))
-  assert.throws(() => metaToURI('line  '))
 })
 
 test('tokenToURI throws on untrimmed input', () => {
@@ -183,4 +131,36 @@ test('file URL helpers encode and decode paths', () => {
   assert.equal(fileURLToPath(relativeUrl), '/notes/today.md')
   assert.equal(fileURLToPath(windowsUrl), 'C:/Users/Alice/My Notes.md')
   assert.throws(() => fileURLToPath(rdf.namedNode('https://example.com')), /file: protocol/)
+})
+
+test('tokenToURI throws on null, undefined, empty', () => {
+  assert.throws(() => tokenToURI(null))
+  assert.throws(() => tokenToURI(undefined))
+  assert.throws(() => tokenToURI(''))
+})
+
+test('splitHeadingName splits at the first # and round-trips', () => {
+  assert.deepEqual(splitHeadingName('Alice'), { note: 'Alice', heading: null })
+  assert.deepEqual(splitHeadingName('Alice#Methods'), { note: 'Alice', heading: 'Methods' })
+  assert.deepEqual(splitHeadingName('Alice#A#B'), { note: 'Alice', heading: 'A#B' })
+  fc.assert(fc.property(nameArb.filter(s => !s.includes('#')), nameArb, (note, heading) => {
+    const { note: n, heading: h } = splitHeadingName(nameFromURI(nameToURI(`${note}#${heading}`)))
+    assert.equal(n, note)
+    assert.equal(h, heading)
+  }))
+})
+
+test('lineRange follows RFC 5147: positions from 0, a 1-based line L is line=L-1,L', () => {
+  assert.equal(lineRange(10), 'line=9,10')
+  assert.equal(lineRange(12, 14), 'line=11,14')
+  assert.throws(() => lineRange(0))
+  assert.throws(() => lineRange(5, 4))
+})
+
+test('the vocabulary uses the https schema.org namespace and names the fragment syntaxes', () => {
+  assert.equal(vocab.about.value, 'https://schema.org/about')
+  assert.equal(vocab.File.value, 'osg://vocab/document#File')
+  assert.equal(vocab.OBSIDIAN_LINKS.value, 'https://obsidian.md/help/links')
+  assert.equal(vocab.RFC5147.value, 'http://tools.ietf.org/rfc/rfc5147')
+  assert.equal(FRONTMATTER_TERMS.tags, vocab.keywords)
 })

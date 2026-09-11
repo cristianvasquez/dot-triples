@@ -11,7 +11,7 @@ repo-group: rdf
 
 Tooling to produce and query RDF from markdown.
 
-This library produces triples but does not take care of semantics. One can say semantics are deferred: emits urn:token:/urn:name:, maps later via CONSTRUCT statements.
+This library produces triples but does not take care of domain semantics. Field predicates are `urn:token:` and names are `urn:name:`; meaning is mapped later via CONSTRUCT statements. The structure it emits, files, notes, headings as references, code blocks and quotes as parts, follows the document domain of `@osg/model`.
 
 Other critical part of the toolkit is [[rdf-cli]].
 

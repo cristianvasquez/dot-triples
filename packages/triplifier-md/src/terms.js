@@ -1,5 +1,5 @@
 import rdf from 'rdf-ext'
-import { UNTYPED_TOKEN, getDocName, getNameFromPath, metaToURI, nameToURI, tokenToURI } from 'canonical-md'
+import { getDocName, getNameFromPath, nameToURI, tokenToURI } from 'canonical-md'
 
 const CURIE = /^[a-zA-Z][\w-]*:[^\s]+$/
 const ABSOLUTE_IRI = /^[a-zA-Z][a-zA-Z\d+.-]*:[^\s<>"{}|\\^`]*$/
@@ -46,28 +46,35 @@ export function predicateNode(key) {
   return tokenToURI(String(key).trim())
 }
 
-export function metaPredicateNode(key) {
-  return metaToURI(String(key).trim())
-}
-
 export function plainLiteralTerm(value) {
   return rdf.literal(String(value))
 }
 
+// The target of a wikilink, before resolution. Obsidian allows a display
+// alias or image size after `|` ([[Note|Alias]], ![[image.png|411]]); that
+// part is presentation and must not leak into the identifier. A leading `#`
+// ([[#Heading]]) names a heading in the current note; it is kept here and
+// resolved by the caller, which knows the note.
 export function normalizeWikiConceptName(name) {
   const trimmed = String(name).trim()
-  // Obsidian wikilinks/embeds allow a trailing display alias or image size
-  // after `|` (e.g. [[Note|Alias]], ![[image.png|411]]). The link target is
-  // the part before the first `|`; the alias/size is presentation only and
-  // must not leak into the concept identifier.
-  const target = trimmed.split('|', 1)[0].trim()
-  if (target.startsWith('#')) return target.slice(1).trim()
-  return target
+  return trimmed.split('|', 1)[0].trim()
 }
 
-export function objectTerm(value) {
+// Resolve a wikilink target to a name. `[[#Heading]]` becomes `<note>#Heading`,
+// except when the heading is the note itself (its name, or its first H1),
+// which resolves to the note.
+export function resolveWikiName(target, { noteName, noteTitle } = {}) {
+  if (!target.startsWith('#')) return target
+  const heading = target.slice(1).trim()
+  if (!heading) return ''
+  if (!noteName) return heading
+  if (heading === noteName || heading === noteTitle) return noteName
+  return `${noteName}#${heading}`
+}
+
+export function objectTerm(value, context = {}) {
   if (Array.isArray(value)) {
-    return value.map(item => objectTerm(item))
+    return value.map(item => objectTerm(item, context))
   }
 
   if (value && typeof value === 'object' && typeof value.termType === 'string') {
@@ -78,7 +85,7 @@ export function objectTerm(value) {
     const trimmed = value.trim()
 
     if (trimmed.startsWith('[[') && trimmed.endsWith(']]')) {
-      const name = normalizeWikiConceptName(trimmed.slice(2, -2))
+      const name = resolveWikiName(normalizeWikiConceptName(trimmed.slice(2, -2)), context)
       // Empty/whitespace-only wikilink (e.g. "[[ ]]") is not a reference;
       // keep it as a plain literal rather than throwing on an empty name.
       if (name) return nameToURI(name)
@@ -119,5 +126,3 @@ export function wikiConceptName(value) {
   if (!trimmed.startsWith('[[') || !trimmed.endsWith(']]')) return null
   return normalizeWikiConceptName(trimmed.slice(2, -2))
 }
-
-export { UNTYPED_TOKEN }
