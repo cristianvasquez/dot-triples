@@ -34,7 +34,7 @@ if (rootManifest.version !== version) {
   throw new Error(`Root version ${rootManifest.version} does not match workspace version ${version}`)
 }
 
-const releaseTag = process.env.GITHUB_REF_NAME
+const releaseTag = process.env.GITHUB_REF_TYPE === 'tag' ? process.env.GITHUB_REF_NAME : undefined
 if (releaseTag && releaseTag !== `v${version}`) {
   throw new Error(`Release tag ${releaseTag} does not match workspace version v${version}`)
 }
