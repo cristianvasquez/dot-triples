@@ -1,6 +1,5 @@
 node_modules/
 intent
-journal
 .*
 !.github/
 .github/*
