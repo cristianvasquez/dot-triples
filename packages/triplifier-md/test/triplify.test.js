@@ -115,6 +115,15 @@ title :: Example
   assert.ok(!predicates.some((p) => p.startsWith('urn:token:')))
 })
 
+test('a field key containing a colon is still parsed as a field, not a prose reference', async () => {
+  const nt = await serializeQuads(triplify(`# Alice
+rdfs:comment :: Alice is the primary contact.
+`, { file: 'Alice.md' }))
+
+  assert.match(nt, /<urn:name:Alice> <urn:token:rdfs%3Acomment> "Alice is the primary contact\." \./)
+  assert.doesNotMatch(nt, /dct\/terms\/references/)
+})
+
 test('explicit name takes precedence over file-derived identity', async () => {
   const nt = await serializeQuads(triplify(`# Alice Smith
 role :: Product Manager

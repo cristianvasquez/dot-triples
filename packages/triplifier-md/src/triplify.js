@@ -206,7 +206,7 @@ export function createTriplifyProcessor(options = {}) {
 
   function handleField(line) {
     const normalizedLine = line.replace(/^\s*[-*+]\s+/, '')
-    const match = normalizedLine.match(/^\s*([^:#][^:]*?)\s*::\s*(.+?)\s*$/)
+    const match = normalizedLine.match(/^\s*([^:#][^\n]*?)\s*::\s*(.+?)\s*$/)
     if (!match) return false
 
     const [, key, rawValue] = match
