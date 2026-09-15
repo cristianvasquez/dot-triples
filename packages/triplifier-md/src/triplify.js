@@ -1,6 +1,7 @@
 import rdf from 'rdf-ext'
 import { FRONTMATTER_TERMS, lineRange, nameFromURI, nameToURI, splitHeadingName, vocab } from 'canonical-md'
 import { parseSimpleYaml, parseScalar } from './frontmatter.js'
+import { PREFIXES, expandCurie } from './curie-expansion.js'
 import {
   documentNode,
   objectTerm,
@@ -27,7 +28,9 @@ import {
 //                                     with line and quote selectors, typed
 //                                     schema:SoftwareSourceCode or schema:Quotation
 //
-// Fields stay urn:token: predicates. Prose references are dct:references.
+// A field key that is a CURIE against a known prefix (rdfs:comment) resolves
+// to that vocabulary term; any other key stays a urn:token: predicate. Prose
+// references are dct:references.
 // A [[Note#Heading]] link anywhere emits the heading's identity (source and
 // fragment selector), because a name and a fragment are all it takes; the
 // owning file adds the location when it is triplified.
@@ -58,10 +61,23 @@ function parseFieldValue(value) {
 }
 
 export function createTriplifyProcessor(options = {}) {
-  const { onQuad = () => {} } = options
+  const { onQuad = () => {}, prefixes: extraPrefixes = {} } = options
+  const prefixes = { ...PREFIXES, ...extraPrefixes }
   const localDocumentNode = documentNode(options)
   const localTopConceptNode = topConceptNode(options)
   const noteName = topConceptName(options)
+
+  // A mapped key wins outright; otherwise a CURIE against a known prefix
+  // resolves to that vocabulary term; anything else stays a urn:token:
+  // predicate, deferred until a mapping or prefix names it.
+  function resolvePredicate(key, { frontmatterTerm = null } = {}) {
+    const mapped = options.mappings?.[key]
+    if (mapped) return rdf.namedNode(mapped)
+    if (frontmatterTerm) return frontmatterTerm
+    const expanded = expandCurie(key, prefixes)
+    if (expanded) return rdf.namedNode(expanded)
+    return predicateNode(key)
+  }
 
   const materializedConcepts = new Set()
   const describedHeadings = new Set()
@@ -165,8 +181,7 @@ export function createTriplifyProcessor(options = {}) {
 
   function emitFrontmatter(frontmatter) {
     for (const [key, value] of Object.entries(frontmatter)) {
-      const mapped = options.mappings?.[key]
-      const predicate = mapped ? rdf.namedNode(mapped) : (FRONTMATTER_TERMS[key] ?? predicateNode(key))
+      const predicate = resolvePredicate(key, { frontmatterTerm: FRONTMATTER_TERMS[key] })
       const plainObject = predicate.equals(vocab.label) || predicate.equals(vocab.keywords)
       emitObject(localDocumentNode, predicate, value, { plainObject })
     }
@@ -212,8 +227,7 @@ export function createTriplifyProcessor(options = {}) {
     const [, key, rawValue] = match
     const trimmedKey = key.trim()
     const parsedValue = parseFieldValue(rawValue)
-    const mapped = options.mappings?.[trimmedKey]
-    const predicate = mapped ? rdf.namedNode(mapped) : predicateNode(trimmedKey)
+    const predicate = resolvePredicate(trimmedKey)
     emitObject(currentSubject(), predicate, parsedValue)
 
     return true

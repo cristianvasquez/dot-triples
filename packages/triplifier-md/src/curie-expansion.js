@@ -3,8 +3,9 @@ import { PREFIXES } from './prefixes.js'
 
 export { PREFIXES }
 
-function expandCurie(curie, prefixes = PREFIXES) {
+export function expandCurie(curie, prefixes = PREFIXES) {
   const separator = curie.indexOf(':')
+  if (separator <= 0) return null
   const prefix = curie.slice(0, separator)
   const suffix = curie.slice(separator + 1)
   const base = prefixes[prefix]

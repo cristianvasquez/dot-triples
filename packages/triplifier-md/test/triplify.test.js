@@ -120,8 +120,16 @@ test('a field key containing a colon is still parsed as a field, not a prose ref
 rdfs:comment :: Alice is the primary contact.
 `, { file: 'Alice.md' }))
 
-  assert.match(nt, /<urn:name:Alice> <urn:token:rdfs%3Acomment> "Alice is the primary contact\." \./)
+  assert.match(nt, /<urn:name:Alice> <http:\/\/www\.w3\.org\/2000\/01\/rdf-schema#comment> "Alice is the primary contact\." \./)
   assert.doesNotMatch(nt, /dct\/terms\/references/)
+})
+
+test('a field key with an unknown CURIE-like prefix falls back to a urn:token: predicate', async () => {
+  const nt = await serializeQuads(triplify(`# Alice
+acme:custom :: some value
+`, { file: 'Alice.md' }))
+
+  assert.match(nt, /<urn:name:Alice> <urn:token:acme%3Acustom> "some value" \./)
 })
 
 test('explicit name takes precedence over file-derived identity', async () => {
