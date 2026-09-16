@@ -1,0 +1,312 @@
+import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { Readable } from 'node:stream'
+import { fileURLToPath } from 'node:url'
+import { dirname, join } from 'node:path'
+import test from 'node:test'
+import {
+  canProcess,
+  createCanvasQuadTransform,
+  triplifyCanvas,
+  triplifyToQuads,
+} from '../src/index.js'
+
+const fixtures = join(dirname(fileURLToPath(import.meta.url)), 'fixtures')
+const fixture = name => readFileSync(join(fixtures, name), 'utf8')
+
+const NAME = 'urn:name:'
+const OA = 'http://www.w3.org/ns/oa#'
+const RESOURCE = 'osg://vocab/resource#'
+const DCT = 'http://purl.org/dc/terms/'
+const RDF_TYPE = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type'
+const RDF_VALUE = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#value'
+const RDFS_LABEL = 'http://www.w3.org/2000/01/rdf-schema#label'
+
+// Blank node labels come from a process-global counter, so they are renamed in
+// order of appearance before comparison.
+function lines (quads) {
+  const seen = new Map()
+  const term = t => {
+    if (t.termType === 'BlankNode') {
+      if (!seen.has(t.value)) seen.set(t.value, `_:b${seen.size}`)
+      return seen.get(t.value)
+    }
+    if (t.termType === 'Literal') {
+      const datatype = t.datatype?.value
+      const plain = !datatype || datatype === 'http://www.w3.org/2001/XMLSchema#string'
+      return `"${t.value}"${plain ? '' : `^^${datatype}`}`
+    }
+    return `<${t.value}>`
+  }
+  return quads.map(q => `${term(q.subject)} ${term(q.predicate)} ${term(q.object)}`)
+}
+
+const has = (quads, line) => lines(quads).includes(line)
+
+function objects (quads, subject, predicate) {
+  return quads
+    .filter(q => q.subject.value === subject && q.predicate.value === predicate)
+    .map(q => q.object)
+}
+
+// The selector values a subject carries, keyed by the syntax they conform to.
+function selectorValues (quads, subject) {
+  const byNode = new Map()
+  for (const quad of quads) {
+    const node = byNode.get(quad.subject.value) ?? {}
+    if (quad.predicate.value === RDF_VALUE) node.value = quad.object.value
+    if (quad.predicate.value === `${DCT}conformsTo`) node.conformsTo = quad.object.value
+    if (quad.predicate.value === `${OA}exact`) node.exact = quad.object.value
+    byNode.set(quad.subject.value, node)
+  }
+  return objects(quads, subject, `${RESOURCE}selector`).map(term => byNode.get(term.value) ?? {})
+}
+
+const canvas = (nodes, edges = []) => ({ nodes, edges })
+const run = (json, options = {}) => triplifyCanvas(json, { name: 'board.canvas', ...options })
+
+const textNode = (id, text, box = {}) => ({
+  type: 'text', id, text, x: 0, y: 0, width: 100, height: 100, ...box,
+})
+const fileNode = (id, file, extra = {}) => ({
+  type: 'file', id, file, x: 0, y: 0, width: 100, height: 100, ...extra,
+})
+
+test('canProcess accepts .canvas only', () => {
+  assert.equal(canProcess('/vault/Board.canvas'), true)
+  assert.equal(canProcess('/vault/Board.md'), false)
+})
+
+test('the canvas is a File keeping its extension in its name', () => {
+  const quads = run(canvas([]))
+  assert.ok(has(quads, `<${NAME}board.canvas> <${RDF_TYPE}> <osg://vocab/document#File>`))
+  assert.ok(has(quads, `<${NAME}board.canvas> <${RDFS_LABEL}> "board"`))
+})
+
+test('the name is derived from the file path when no name is given', () => {
+  const quads = triplifyCanvas(canvas([]), { file: '/vault/boards/My Board.canvas' })
+  assert.ok(has(quads, `<${NAME}My%20Board.canvas> <${RDF_TYPE}> <osg://vocab/document#File>`))
+  assert.ok(has(quads, `<${NAME}My%20Board.canvas> <${RDFS_LABEL}> "My Board"`))
+})
+
+test('triplifyCanvas requires a name or a file', () => {
+  assert.throws(() => triplifyCanvas(canvas([]), {}), /requires a name or file/)
+})
+
+test('a node is an anchor with an id selector and a rectangle', () => {
+  const quads = run(canvas([textNode('n1', 'hello', { x: -10, y: 20, width: 250, height: 56 })]))
+  const anchor = `${NAME}board.canvas%23n1`
+
+  assert.ok(has(quads, `<${anchor}> <${RDF_TYPE}> <${RESOURCE}ResourceReference>`))
+  assert.ok(has(quads, `<${anchor}> <${RESOURCE}source> <${NAME}board.canvas>`))
+  assert.ok(has(quads, `<${NAME}board.canvas> <https://schema.org/about> <${anchor}>`))
+
+  assert.deepEqual(selectorValues(quads, anchor), [
+    { value: 'n1', conformsTo: 'https://jsoncanvas.org/spec/1.0/' },
+    { value: 'xywh=-10,20,250,56', conformsTo: 'http://www.w3.org/TR/media-frags/' },
+    { exact: 'hello' },
+  ])
+})
+
+test('a node without geometry gets no rectangle', () => {
+  const quads = run(canvas([{ type: 'text', id: 'n1', text: 'hello' }]))
+  const syntaxes = selectorValues(quads, `${NAME}board.canvas%23n1`).map(s => s.conformsTo)
+  assert.deepEqual(syntaxes, ['https://jsoncanvas.org/spec/1.0/', undefined])
+})
+
+test('a node with no id, and a repeated id, are dropped', () => {
+  const quads = run(canvas([
+    textNode('', 'no id'),
+    textNode('n1', 'first'),
+    textNode('n1', 'second'),
+  ]))
+  const anchors = objects(quads, `${NAME}board.canvas`, 'https://schema.org/about')
+  assert.deepEqual(anchors.map(t => t.value), [`${NAME}board.canvas%23n1`])
+  assert.ok(lines(quads).some(line => line.endsWith(`<${OA}exact> "first"`)))
+  assert.ok(!lines(quads).some(line => line.includes('"second"')))
+})
+
+test('a file node points at the note, Markdown losing its extension', () => {
+  const quads = run(canvas([fileNode('n1', 'bob/Bob.md'), fileNode('n2', 'houses/img.png')]))
+  assert.ok(has(quads, `<${NAME}board.canvas%23n1> <${DCT}references> <${NAME}Bob>`))
+  assert.ok(has(quads, `<${NAME}board.canvas%23n2> <${DCT}references> <${NAME}img.png>`))
+})
+
+test('a file node subpath gives the heading its identity', () => {
+  const quads = run(canvas([fileNode('n1', 'Bob.md', { subpath: '#Bio' })]))
+  const heading = `${NAME}Bob%23Bio`
+
+  assert.ok(has(quads, `<${NAME}board.canvas%23n1> <${DCT}references> <${heading}>`))
+  assert.ok(has(quads, `<${heading}> <${RDF_TYPE}> <${RESOURCE}ResourceReference>`))
+  assert.ok(has(quads, `<${heading}> <${RESOURCE}source> <${NAME}Bob>`))
+  assert.deepEqual(selectorValues(quads, heading), [
+    { value: 'Bio', conformsTo: 'https://obsidian.md/help/links' },
+  ])
+})
+
+test('a link node points at its URL', () => {
+  const quads = run(canvas([{ type: 'link', id: 'n1', url: 'https://example.com/spec' }]))
+  assert.ok(has(quads, `<${NAME}board.canvas%23n1> <${DCT}references> <https://example.com/spec>`))
+})
+
+test('a text card carries its text and its fields', () => {
+  const quads = run(canvas([textNode('n1', '## Bob\nrole :: Product Manager\nknows :: [[Alice]]\nsee [[Person]]')]))
+  const anchor = `${NAME}board.canvas%23n1`
+
+  assert.ok(has(quads, `<${anchor}> <urn:token:role> "Product Manager"`))
+  assert.ok(has(quads, `<${anchor}> <urn:token:knows> <${NAME}Alice>`))
+  assert.ok(has(quads, `<${anchor}> <${DCT}references> <${NAME}Person>`))
+})
+
+test('a group carries its label and holds the nodes drawn inside it', () => {
+  const quads = run(canvas([
+    { type: 'group', id: 'outer', label: 'Entities', x: 0, y: 0, width: 1000, height: 1000 },
+    { type: 'group', id: 'inner', label: 'Friends', x: 10, y: 10, width: 500, height: 500 },
+    textNode('card', 'Bob', { x: 20, y: 20, width: 100, height: 100 }),
+    textNode('outside', 'Elsewhere', { x: 5000, y: 5000, width: 100, height: 100 }),
+  ]))
+  const anchor = id => `${NAME}board.canvas%23${id}`
+
+  assert.ok(has(quads, `<${anchor('outer')}> <${RDFS_LABEL}> "Entities"`))
+  // The smallest containing group only: nesting is a tree, the rest is its
+  // transitive closure.
+  assert.ok(has(quads, `<${anchor('outer')}> <${DCT}hasPart> <${anchor('inner')}>`))
+  assert.ok(has(quads, `<${anchor('inner')}> <${DCT}hasPart> <${anchor('card')}>`))
+  assert.ok(!has(quads, `<${anchor('outer')}> <${DCT}hasPart> <${anchor('card')}>`))
+  assert.ok(!lines(quads).some(line => line.includes(`hasPart> <${anchor('outside')}>`)))
+})
+
+test('a labelled edge states a property between the notes the two ends point at', () => {
+  const quads = run(canvas(
+    [fileNode('n1', 'Bob.md'), fileNode('n2', 'houses/BobHouse.md')],
+    [{ id: 'e1', fromNode: 'n1', toNode: 'n2', label: 'lives in' }],
+  ))
+  assert.ok(has(quads, `<${NAME}Bob> <urn:token:lives%20in> <${NAME}BobHouse>`))
+})
+
+test('an edge between two cards states the property between the anchors', () => {
+  const quads = run(canvas(
+    [textNode('n1', '## Bob'), textNode('n2', '## Ice cream')],
+    [{ id: 'e1', fromNode: 'n1', toNode: 'n2', label: 'likes' }],
+  ))
+  assert.ok(has(quads, `<${NAME}board.canvas%23n1> <urn:token:likes> <${NAME}board.canvas%23n2>`))
+})
+
+test('an edge label resolves like a field key: mapping, then known prefix, then token', () => {
+  const nodes = [textNode('n1', 'a'), textNode('n2', 'b')]
+  const edge = label => canvas(nodes, [{ id: 'e1', fromNode: 'n1', toNode: 'n2', label }])
+  const anchors = `<${NAME}board.canvas%23n1> %s <${NAME}board.canvas%23n2>`
+  const property = (quads, predicate) => has(quads, anchors.replace('%s', `<${predicate}>`))
+
+  assert.ok(property(run(edge('knows'), { mappings: { knows: 'http://xmlns.com/foaf/0.1/knows' } }),
+    'http://xmlns.com/foaf/0.1/knows'))
+  assert.ok(property(run(edge('rdfs:seeAlso')), 'http://www.w3.org/2000/01/rdf-schema#seeAlso'))
+  assert.ok(property(run(edge('ex:details'), { prefixes: { ex: 'http://example.org/' } }),
+    'http://example.org/details'))
+  assert.ok(property(run(edge('ex:details')), 'urn:token:ex%3Adetails'))
+  assert.ok(property(run(edge('lives in')), 'urn:token:lives%20in'))
+})
+
+test('an edge label that is an absolute IRI is the predicate, verbatim', () => {
+  const quads = run(canvas(
+    [textNode('n1', 'a'), textNode('n2', 'b')],
+    [{ id: 'e1', fromNode: 'n1', toNode: 'n2', label: 'https://schema.org/knows' }],
+  ))
+  assert.ok(has(quads, `<${NAME}board.canvas%23n1> <https://schema.org/knows> <${NAME}board.canvas%23n2>`))
+})
+
+test('an edge label is read as one line', () => {
+  const quads = run(canvas(
+    [textNode('n1', 'a'), textNode('n2', 'b')],
+    [{ id: 'e1', fromNode: 'n1', toNode: 'n2', label: 'lives\n  in' }],
+  ))
+  assert.ok(has(quads, `<${NAME}board.canvas%23n1> <urn:token:lives%20in> <${NAME}board.canvas%23n2>`))
+})
+
+test('an unlabelled edge is a reference', () => {
+  const quads = run(canvas(
+    [textNode('n1', 'a'), textNode('n2', 'b')],
+    [{ id: 'e1', fromNode: 'n1', toNode: 'n2' }],
+  ))
+  assert.ok(has(quads, `<${NAME}board.canvas%23n1> <${DCT}references> <${NAME}board.canvas%23n2>`))
+})
+
+test('the arrowheads decide which way the property runs', () => {
+  const nodes = [fileNode('n1', 'Bob.md'), fileNode('n2', 'Alice.md')]
+  const drawn = ends => run(canvas(nodes, [{ id: 'e1', fromNode: 'n1', toNode: 'n2', label: 'knows', ...ends }]))
+  const forward = `<${NAME}Bob> <urn:token:knows> <${NAME}Alice>`
+  const backward = `<${NAME}Alice> <urn:token:knows> <${NAME}Bob>`
+
+  const arrowToTo = drawn({})
+  assert.ok(has(arrowToTo, forward) && !has(arrowToTo, backward))
+
+  const arrowToFrom = drawn({ fromEnd: 'arrow', toEnd: 'none' })
+  assert.ok(!has(arrowToFrom, forward) && has(arrowToFrom, backward))
+
+  const bothEnds = drawn({ fromEnd: 'arrow', toEnd: 'arrow' })
+  assert.ok(has(bothEnds, forward) && has(bothEnds, backward))
+
+  const plainLine = drawn({ fromEnd: 'none', toEnd: 'none' })
+  assert.ok(has(plainLine, forward) && !has(plainLine, backward))
+})
+
+test('an edge to a node that is not in the file states nothing', () => {
+  const quads = run(canvas(
+    [textNode('n1', 'a')],
+    [{ id: 'e1', fromNode: 'n1', toNode: 'missing', label: 'knows' }],
+  ))
+  assert.ok(!lines(quads).some(line => line.includes('urn:token:knows')))
+})
+
+test('an empty canvas, and one with no nodes or edges key, produce the file alone', () => {
+  assert.equal(run({}).length, 2)
+  assert.equal(run(canvas([])).length, 2)
+})
+
+test('malformed JSON fails', () => {
+  assert.throws(() => run('{ not json'), SyntaxError)
+})
+
+test('triplifyToQuads expands CURIEs and types literals', () => {
+  const quads = triplifyToQuads(JSON.stringify(canvas([
+    textNode('n1', 'count :: 3\ntype :: schema:Person'),
+  ])), { name: 'board.canvas' })
+
+  assert.ok(has(quads, `<${NAME}board.canvas%23n1> <urn:token:count> "3"^^http://www.w3.org/2001/XMLSchema#integer`))
+  assert.ok(has(quads, `<${NAME}board.canvas%23n1> <urn:token:type> <https://schema.org/Person>`))
+})
+
+test('the quad transform produces what triplifyCanvas produces', async () => {
+  const content = fixture('board.canvas')
+  const expected = lines(triplifyCanvas(content, { name: 'board.canvas' }))
+
+  const streamed = []
+  const transform = createCanvasQuadTransform({ name: 'board.canvas' })
+  Readable.from([content.slice(0, 200), content.slice(200)]).pipe(transform)
+  for await (const quad of transform) streamed.push(quad)
+
+  assert.deepEqual(lines(streamed), expected)
+})
+
+test('an empty input produces no quads', async () => {
+  const transform = createCanvasQuadTransform({ name: 'board.canvas' })
+  Readable.from(['   ']).pipe(transform)
+  const streamed = []
+  for await (const quad of transform) streamed.push(quad)
+  assert.equal(streamed.length, 0)
+})
+
+test('the example canvas states the properties its edges draw', () => {
+  const quads = triplifyToQuads(fixture('board.canvas'), {
+    name: 'board.canvas',
+    prefixes: { ex: 'http://example.org/' },
+  })
+
+  assert.ok(has(quads, `<${NAME}Bob> <${DCT}references> <${NAME}BobHouse>`) === false)
+  assert.ok(has(quads, `<${NAME}Bob> <http://example.org/details> <${NAME}Bob%20Details>`))
+  assert.ok(has(quads, `<${NAME}Bob> <urn:token:lives%20in> <${NAME}BobHouse>`))
+  assert.ok(has(quads, `<${NAME}Bob> <urn:token:drew> <${NAME}img.png>`))
+  // The "ex:friends" group is a rectangle, not a note, so it is the anchor
+  // that carries the property the edge draws.
+  assert.ok(has(quads, `<${NAME}board.canvas%23539e02882770ae3f> <urn:token:Same%20as> <${NAME}Person>`))
+})

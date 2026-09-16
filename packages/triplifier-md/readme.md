@@ -22,6 +22,8 @@ This package owns:
 - N-Triples serialization
 - the `triplify` CLI
 
+The inline layer -- `key :: value` fields, prose references, selectors and the heading identity a link implies -- is `triplifier-md/inline`. [[triplifier-canvas]] reuses it for the text cards of a canvas, so there is one implementation of the syntax.
+
 ## Usage
 
 ```bash

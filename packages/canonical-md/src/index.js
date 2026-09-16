@@ -37,6 +37,11 @@ export const vocab = Object.freeze({
   SoftwareSourceCode: ns.schema.SoftwareSourceCode,
   Quotation: ns.schema.Quotation,
   references: ns.dct.references,
+  // Containment between two references into one document: the rectangle a
+  // canvas group draws and the rectangles inside it. dct:hasPart, not
+  // schema:hasPart, which the document domain reserves for a code block or a
+  // quotation.
+  dctHasPart: ns.dct.hasPart,
   created: ns.dct.created,
   modified: ns.dct.modified,
   conformsTo: ns.dct.conformsTo,
@@ -46,6 +51,8 @@ export const vocab = Object.freeze({
   // Fragment syntaxes a selector conforms to.
   OBSIDIAN_LINKS: rdf.namedNode('https://obsidian.md/help/links'),
   RFC5147: rdf.namedNode('http://tools.ietf.org/rfc/rfc5147'),
+  JSON_CANVAS: rdf.namedNode('https://jsoncanvas.org/spec/1.0/'),
+  MEDIA_FRAGMENTS: rdf.namedNode('http://www.w3.org/TR/media-frags/'),
 })
 
 // Frontmatter keys the document model names. Applied to frontmatter only;

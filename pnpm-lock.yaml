@@ -34,6 +34,21 @@ importers:
         specifier: ^3.7.4
         version: 3.7.4
 
+  packages/triplifier-canvas:
+    dependencies:
+      '@rdfjs/serializer-ntriples':
+        specifier: ^2.0.1
+        version: 2.0.1
+      canonical-md:
+        specifier: workspace:*
+        version: link:../canonical-md
+      rdf-ext:
+        specifier: ^2.6.0
+        version: 2.6.0
+      triplifier-md:
+        specifier: workspace:*
+        version: link:../triplifier-md
+
   packages/triplifier-md:
     dependencies:
       '@rdfjs/serializer-ntriples':

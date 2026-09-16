@@ -3,7 +3,8 @@ import { mapQuad, PREFIXES } from './curie-expansion.js'
 import { typeQuad } from './typed-literals.js'
 
 export { createTriplifyQuadTransform, createCurieExpansionQuadTransform, createTypedLiteralsQuadTransform } from './streams.js'
-export { PREFIXES } from './curie-expansion.js'
+export { mapQuad, PREFIXES } from './curie-expansion.js'
+export { typeQuad } from './typed-literals.js'
 
 export function canProcess(absolutePath) {
   return absolutePath.endsWith('.md')

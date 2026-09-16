@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-const packageNames = ['canonical-md', 'sparql-md', 'triplifier-md']
+const packageNames = ['canonical-md', 'sparql-md', 'triplifier-canvas', 'triplifier-md']
 const dryRun = process.argv.includes('--dry-run')
 
 const rootManifest = JSON.parse(readFileSync('package.json', 'utf8'))

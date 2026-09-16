@@ -1,21 +1,22 @@
 {
-  "name": "triplifier-md",
+  "name": "triplifier-canvas",
   "version": "0.1.1",
   "type": "module",
-  "description": "Convert Markdown frontmatter, headings, and Obsidian-style fields to RDF quads and N-Triples",
+  "description": "Convert Obsidian JSON Canvas files to RDF quads and N-Triples",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/cristianvasquez/dot-triples.git",
-    "directory": "packages/triplifier-md"
+    "directory": "packages/triplifier-canvas"
   },
-  "homepage": "https://github.com/cristianvasquez/dot-triples/tree/main/packages/triplifier-md#readme",
+  "homepage": "https://github.com/cristianvasquez/dot-triples/tree/main/packages/triplifier-canvas#readme",
   "bugs": {
     "url": "https://github.com/cristianvasquez/dot-triples/issues"
   },
   "keywords": [
     "rdf",
-    "markdown",
+    "canvas",
+    "jsoncanvas",
     "obsidian",
     "n-triples"
   ],
@@ -30,20 +31,18 @@
     "registry": "https://registry.npmjs.org/"
   },
   "bin": {
-    "triplify": "./src/cli.js"
+    "triplify-canvas": "./src/cli.js"
   },
   "scripts": {
-    "test": "node --test test/*.test.js",
-    "bench:workspace": "node test/benchmark-workspace.js"
+    "test": "node --test test/*.test.js"
   },
   "exports": {
-    ".": "./src/index.js",
-    "./inline": "./src/inline.js",
-    "./serialize": "./src/serialize.js"
+    ".": "./src/index.js"
   },
   "dependencies": {
     "@rdfjs/serializer-ntriples": "^2.0.1",
     "canonical-md": "workspace:*",
-    "rdf-ext": "^2.6.0"
+    "rdf-ext": "^2.6.0",
+    "triplifier-md": "workspace:*"
   }
 }

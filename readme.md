@@ -9,7 +9,7 @@ repo-group: rdf
 
 # [dot-triples](osg://repo/github.com/cristianvasquez/dot-triples)
 
-Tooling to produce and query RDF from markdown.
+Tooling to produce and query RDF from markdown and Obsidian canvases.
 
 This library produces triples but does not take care of domain semantics. Field predicates are `urn:token:` and names are `urn:name:`; meaning is mapped later via CONSTRUCT statements. The structure it emits, files, notes, headings as references, code blocks and quotes as parts, follows the document domain of `@osg/model`.
 
@@ -17,6 +17,7 @@ Other critical part of the toolkit is [[rdf-cli]].
 
 - [[canonical-md]] declare all namespaces used in the [[document-model]].
 - [[sparql-md]] knows how to rewrite to standard SPARQL queries.
+- [[triplifier-canvas]] turns the edges drawn on a canvas into properties, following the [[canvas-model]].
 
 Example: [[triplification example]]
 

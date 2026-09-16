@@ -6,6 +6,7 @@ import { spawnSync } from 'node:child_process'
 const expectedPackages = new Map([
   ['canonical-md', 'packages/canonical-md'],
   ['sparql-md', 'packages/sparql-md'],
+  ['triplifier-canvas', 'packages/triplifier-canvas'],
   ['triplifier-md', 'packages/triplifier-md'],
 ])
 
