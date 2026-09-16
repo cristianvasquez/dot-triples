@@ -1,6 +1,6 @@
 {
   "name": "triplifier-md",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "description": "Convert Markdown frontmatter, headings, and Obsidian-style fields to RDF quads and N-Triples",
   "license": "MIT",
