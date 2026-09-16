@@ -44,11 +44,8 @@ jobs:
       - name: Test
         run: pnpm test
 
-      - name: Validate package versions and contents
-        run: pnpm run pack:check
-
       - name: Publish unpublished workspace versions
-        run: pnpm run publish:packages
+        run: pnpm run publish:packages --no-git-checks
 
       - name: Create GitHub release
         run: gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes --title "$GITHUB_REF_NAME"

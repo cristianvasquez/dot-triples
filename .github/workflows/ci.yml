@@ -39,5 +39,5 @@ jobs:
       - name: Test
         run: pnpm test
 
-      - name: Validate package versions and contents
-        run: pnpm run pack:check
+      - name: Check package archives
+        run: pnpm run publish:packages:dry-run

@@ -27,3 +27,29 @@ Example: [[triplification example]]
 pnpm install
 pnpm test
 ```
+
+## Publishing
+
+Use Node.js 24, pnpm 10.32.1 and npm 11.15 or later. Authenticate with `npm login`, then configure the existing npm packages once:
+
+```bash
+pnpm trust:github
+```
+
+This authorizes `cristianvasquez/dot-triples`, workflow `npm-publish.yml`, to publish using [npm trusted publishing](https://docs.npmjs.com/cli/v11/commands/npm-trust/). npm requires package write access and account 2FA. For a new package, publish it once with `pnpm --filter <package> publish --access public` before configuring trust.
+
+After committing your changes on `main`, release with:
+
+```bash
+pnpm release patch
+```
+
+Use `minor` or `major` instead of `patch` as needed. This runs tests, updates workspace versions and the lockfile, checks package archives, and pushes the release commit and tag. GitHub Actions tests the tagged code and publishes it. [pnpm skips versions already on npm](https://pnpm.io/10.x/cli/publish), so you can rerun a failed publish job.
+
+To inspect package contents without publishing:
+
+```bash
+pnpm publish:packages:dry-run
+```
+
+The dry run checks all packages, including versions already on npm. It does not verify GitHub OIDC authentication.

@@ -4,6 +4,7 @@ import { Readable } from 'node:stream'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import test from 'node:test'
+import { spawnSync } from 'node:child_process'
 import {
   canProcess,
   createCanvasQuadTransform,
@@ -267,6 +268,72 @@ test('malformed JSON fails', () => {
   assert.throws(() => run('{ not json'), SyntaxError)
 })
 
+test('Buffer input preserves nodes, edges and Unicode text', () => {
+  const json = canvas([textNode('a', 'café'), textNode('b', '東京')], [
+    { id: 'edge', fromNode: 'a', toNode: 'b', label: 'knows' },
+  ])
+  const content = JSON.stringify(json)
+  assert.deepEqual(lines(run(Buffer.from(content))), lines(run(content)))
+  assert.throws(() => run(Buffer.from('{ not json')), SyntaxError)
+})
+
+test('fenced code is retained as text without asserting its fields or links', () => {
+  for (const [open, interior, close] of [
+    ['```js', '~~~', '```'], ['~~~', '```', '~~~~'], ['````', '```', '````'],
+  ]) {
+    const content = [open, 'knows :: [[Alice]]', '[[Hidden]]', interior, 'hidden :: true', close,
+      'count :: 3', '[[Visible]]'].join('\n')
+    const quads = run(canvas([textNode('a', content)]))
+    const anchor = `${NAME}board.canvas%23a`
+    assert.equal(objects(quads, anchor, 'urn:token:knows').length, 0)
+    assert.equal(objects(quads, anchor, 'urn:token:hidden').length, 0)
+    assert.deepEqual(objects(quads, anchor, `${DCT}references`).map(t => t.value), [`${NAME}Visible`])
+    assert.equal(objects(quads, anchor, 'urn:token:count')[0].value, '3')
+    assert.ok(quads.some(q => q.predicate.value === `${OA}exact` && q.object.value === content))
+  }
+})
+
+test('an unclosed fence ends at the card boundary', () => {
+  const quads = run(canvas([
+    textNode('a', '```\nknows :: [[Alice]]'),
+    textNode('b', 'knows :: [[Bob]]'),
+  ]))
+  assert.equal(objects(quads, `${NAME}board.canvas%23a`, 'urn:token:knows').length, 0)
+  assert.equal(objects(quads, `${NAME}board.canvas%23b`, 'urn:token:knows')[0].value, `${NAME}Bob`)
+})
+
+test('CRLF fences suppress facts until a valid closing fence', () => {
+  const text = ['  ```js', 'knows :: [[Alice]]', '  ```still code',
+    'hidden :: true', '  ```', 'count :: 3'].join('\r\n')
+  const quads = run(canvas([textNode('a', text)]))
+  const anchor = `${NAME}board.canvas%23a`
+  assert.equal(objects(quads, anchor, 'urn:token:knows').length, 0)
+  assert.equal(objects(quads, anchor, 'urn:token:hidden').length, 0)
+  assert.equal(objects(quads, anchor, 'urn:token:count')[0].value, '3')
+})
+
+test('the API and CLI preserve selector strings while typing field values', () => {
+  const content = JSON.stringify(canvas([
+    textNode('00123', '00123'), textNode('false', 'false'),
+    textNode('2026-09-16', '2026-09-16'), textNode('fields', 'count :: 3'),
+  ]))
+  const quads = triplifyToQuads(content, { name: 'board.canvas' })
+  for (const quad of quads.filter(q => [RDF_VALUE, `${OA}exact`].includes(q.predicate.value))) {
+    assert.equal(quad.object.datatype.value, 'http://www.w3.org/2001/XMLSchema#string')
+  }
+  assert.equal(objects(quads, `${NAME}board.canvas%23fields`, 'urn:token:count')[0].datatype.value,
+    'http://www.w3.org/2001/XMLSchema#integer')
+
+  const cli = spawnSync(process.execPath, [fileURLToPath(new URL('../src/cli.js', import.meta.url)), 'board.canvas'],
+    { input: content, encoding: 'utf8' })
+  assert.equal(cli.status, 0, cli.stderr)
+  for (const value of ['00123', 'false', '2026-09-16']) {
+    assert.ok(cli.stdout.includes(`<${RDF_VALUE}> "${value}" .`))
+    assert.ok(cli.stdout.includes(`<${OA}exact> "${value}" .`))
+  }
+  assert.ok(cli.stdout.includes('<urn:token:count> "3"^^<http://www.w3.org/2001/XMLSchema#integer> .'))
+})
+
 test('triplifyToQuads expands CURIEs and types literals', () => {
   const quads = triplifyToQuads(JSON.stringify(canvas([
     textNode('n1', 'count :: 3\ntype :: schema:Person'),
@@ -309,4 +376,42 @@ test('the example canvas states the properties its edges draw', () => {
   // The "ex:friends" group is a rectangle, not a note, so it is the anchor
   // that carries the property the edge draws.
   assert.ok(has(quads, `<${NAME}board.canvas%23539e02882770ae3f> <urn:token:Same%20as> <${NAME}Person>`))
+})
+
+test('the cards fixture links anchors and ignores its dangling edge', () => {
+  const quads = triplifyToQuads(fixture('cards.canvas'), { name: 'cards.canvas' })
+  const anchor = id => `${NAME}cards.canvas%23${id}`
+  const references = quads.filter(q => q.predicate.value === `${DCT}references`)
+  assert.deepEqual(references.map(q => [q.subject.value, q.object.value]), [
+    [anchor('05f8fdf93ab87df8'), anchor('ccee2d298466cc2d')],
+    [anchor('ccee2d298466cc2d'), anchor('e9992f3480f8494f')],
+  ])
+  assert.deepEqual(selectorValues(quads, anchor('ccee2d298466cc2d')).filter(s => s.exact),
+    [{ exact: '## Alice\n\n' }])
+})
+
+test('distinct groups with equal bounds contain each other', () => {
+  const quads = run(canvas(['a', 'b'].map(id => ({
+    id, type: 'group', x: 0, y: 0, width: 100, height: 100,
+  }))))
+  const anchor = id => `${NAME}board.canvas%23${id}`
+  assert.deepEqual(objects(quads, anchor('a'), `${DCT}hasPart`).map(t => t.value), [anchor('b')])
+  assert.deepEqual(objects(quads, anchor('b'), `${DCT}hasPart`).map(t => t.value), [anchor('a')])
+})
+
+test('the quad transform decodes UTF-8 across byte boundaries', async () => {
+  const content = JSON.stringify(canvas([textNode('a', 'café 東京 😀')]))
+  const transform = createCanvasQuadTransform({ name: 'board.canvas' })
+  Readable.from([...Buffer.from(content)].map(byte => Buffer.from([byte]))).pipe(transform)
+  const quads = []
+  for await (const quad of transform) quads.push(quad)
+  assert.deepEqual(lines(quads), lines(run(content)))
+})
+
+test('the quad transform reports malformed JSON', async () => {
+  const transform = createCanvasQuadTransform({ name: 'board.canvas' })
+  Readable.from(['{ not json']).pipe(transform)
+  await assert.rejects(async () => {
+    for await (const quad of transform) assert.fail(`Unexpected quad: ${quad}`)
+  }, SyntaxError)
 })

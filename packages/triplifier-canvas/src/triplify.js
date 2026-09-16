@@ -75,7 +75,19 @@ export function createCanvasProcessor (options = {}) {
     if (!text) return
 
     inline.emitQuoteSelector(anchor, text)
+    let fence = null
     for (const line of text.split('\n')) {
+      const marker = line.replace(/\r$/, '').match(/^ {0,3}(`{3,}|~{3,})(.*)$/)
+      if (fence) {
+        if (marker && marker[1][0] === fence[0] && marker[1].length >= fence.length && !marker[2].trim()) {
+          fence = null
+        }
+        continue
+      }
+      if (marker && (marker[1][0] === '~' || !marker[2].includes('`'))) {
+        fence = marker[1]
+        continue
+      }
       if (inline.field(line, anchor)) continue
       inline.references(line, anchor)
     }
@@ -189,6 +201,7 @@ export function createCanvasProcessor (options = {}) {
 }
 
 export function parseCanvas (content) {
+  if (Buffer.isBuffer(content)) return JSON.parse(content.toString('utf8'))
   if (content && typeof content === 'object') return content
   return JSON.parse(String(content))
 }
