@@ -544,3 +544,55 @@ test('curie expansion quad transform maps quads incrementally', async () => {
   assert.equal(quads[0].predicate.value, 'https://schema.org/knows')
   assert.equal(quads[0].object.value, 'https://schema.org/Person')
 })
+
+// What one body line means, in full. Each case lists every statement the line
+// adds to the note beyond the boilerplate a bare `# N` already emits, so a
+// case that states nothing is as binding as one that states something. The
+// parser stays a line scanner; this table is where the syntax is agreed.
+const REFERENCES = 'http://purl.org/dc/terms/references'
+const LABEL = 'http://www.w3.org/2000/01/rdf-schema#label'
+
+const LINE_SEMANTICS = [
+  // `key :: value` splits on the first `::`. The left side is the token, the
+  // right side takes its term from its own shape.
+  ['uses :: [sparql]', [['urn:token:uses', '<urn:token:sparql>']]],
+  ['uses :: [[Bob]]', [['urn:token:uses', '<urn:name:Bob>']]],
+  ['uses :: schema:Person', [['urn:token:uses', '<schema:Person>']]],
+  ['uses :: 2026-09-18', [['urn:token:uses', '"2026-09-18"']]],
+  ['- uses :: [sparql]', [['urn:token:uses', '<urn:token:sparql>']]],
+
+  // Prose references, each one dct:references.
+  ['plain prose, nothing to state', []],
+  ['See [sparql] and [[Bob]].', [[REFERENCES, '<urn:name:Bob>'], [REFERENCES, '<urn:token:sparql>']]],
+  ['See [the spec](https://example.com/spec).', [[REFERENCES, '<https://example.com/spec>'], [LABEL, '"the spec"']]],
+  ['prefix [a] single char token in prose', [[REFERENCES, '<urn:token:a>']]],
+  ['[x] not a list item', [[REFERENCES, '<urn:token:x>']]],
+
+  // The checkbox of a task list item is list syntax. It states nothing, in any
+  // state character, under a bullet or a number. The rest of the line is read
+  // as usual. Tasks themselves are not modelled yet.
+  ['- [x] Is Jabber open?', []],
+  ['1. [>] Deferred', []],
+  ['- [a] single char token at list head', []],
+  ['- [ ] Ask [[Bob]]', [[REFERENCES, '<urn:name:Bob>']]],
+  ['- [/] Read [sparql] docs', [[REFERENCES, '<urn:token:sparql>']]],
+  ['- [x] Ask [[Bob]] about [sparql]', [[REFERENCES, '<urn:name:Bob>'], [REFERENCES, '<urn:token:sparql>']]],
+
+  // A field on a task line: the `::` split is the only rule, so the checkbox
+  // is part of the key. Recorded as it stands, to change when tasks are modelled.
+  ['- [x] due :: 2026-09-18', [['urn:token:%5Bx%5D%20due', '"2026-09-18"']]],
+]
+
+test('a body line states exactly what the syntax says it states', () => {
+  const options = { name: 'N', file: 'N.md' }
+  const boilerplate = new Set(triplify('# N\n', options).map(String))
+  const show = (term) => term.termType === 'Literal' ? JSON.stringify(term.value) : `<${term.value}>`
+
+  for (const [line, expected] of LINE_SEMANTICS) {
+    const stated = triplify(`# N\n\n${line}\n`, options)
+      .filter((quad) => !boilerplate.has(String(quad)))
+      .map((quad) => [quad.predicate.value, show(quad.object)])
+
+    assert.deepEqual(stated.sort(), expected.slice().sort(), `line: ${line}`)
+  }
+})

@@ -21,6 +21,9 @@ const MARKDOWN_LINK = /\[([^\]]+)\]\(([^)\s]+)\)/g
 const WIKI_LINK = /\[\[([^\]]+)\]\]/g
 const TOKEN_REFERENCE = /\[([^\[\]]+)\](?!\()/g
 const NAMED_REFERENCE = /(^|[\s(>])([a-zA-Z][\w+.-]*:[^\s<>)\]},"'`\\^|{}]+)/g
+// The checkbox of a task list item: `- [x]`, `- [ ]` and the Obsidian custom
+// states (`- [/]`, `- [>]`, ...). It is list syntax, not a [token] reference.
+const TASK_CHECKBOX = /^(\s*(?:[-*+]|\d+[.)])\s+)(\[[^\[\]]\])(?=\s|$)/
 
 export function extractPlainText(text) {
   return text.replace(MARKDOWN_LINK, '$1').replace(WIKI_LINK, '$1').replace(TOKEN_REFERENCE, '$1')
@@ -145,6 +148,12 @@ export function createInlineExtractor(options = {}) {
   function references(line, subject) {
     let matched = false
     const occupiedRanges = []
+
+    const checkbox = line.match(TASK_CHECKBOX)
+    if (checkbox) {
+      const start = checkbox[1].length
+      occupiedRanges.push([start, start + checkbox[2].length])
+    }
 
     for (const match of line.matchAll(MARKDOWN_LINK)) {
       const [, label, uri] = match

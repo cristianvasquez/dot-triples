@@ -121,6 +121,8 @@ See [the spec](https://example.com/spec), [[Bob]], [sparql], and schema:Person.
 <https://example.com/spec>  rdfs:label  "the spec"
 ```
 
+The checkbox of a task list item is list syntax, not a `[value]` token reference: `- [x]`, `- [ ]` and the Obsidian states (`- [/]`, `- [>]`, ...) state nothing.
+
 An embed `![[photo.png]]` is a reference to `urn:name:photo.png`. Resolving it to an image is a wrapping triplifier's job.
 
 ## Parts: code blocks and blockquotes
