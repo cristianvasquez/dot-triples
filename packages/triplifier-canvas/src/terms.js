@@ -85,18 +85,3 @@ export function mediaFragment (node) {
   if (!numbers.every(value => Number.isFinite(value))) return null
   return `xywh=${numbers.join(',')}`
 }
-
-// Geometric containment, the only way a canvas states that a group holds a
-// node. Touching edges count as inside, as Obsidian draws it.
-export function contains (group, node) {
-  if (group.id === node.id) return false
-  if (!mediaFragment(group) || !mediaFragment(node)) return false
-  return node.x >= group.x &&
-    node.y >= group.y &&
-    node.x + node.width <= group.x + group.width &&
-    node.y + node.height <= group.y + group.height
-}
-
-export function area (node) {
-  return Number(node.width) * Number(node.height)
-}

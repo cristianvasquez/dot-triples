@@ -85,15 +85,20 @@ From the arrowheads. JSON Canvas defaults are `fromEnd: "none"` and `toEnd: "arr
 
 ## Groups
 
-A group is a rectangle with a label; its members are the nodes drawn inside it. Containment is geometric, computed once here rather than left to a consumer to derive from four literals.
+A group is a rectangle with a label; its members are the nodes drawn inside it. JSON Canvas has no membership field, so containment is the one relation computed rather than read: it is geometric, computed once here rather than left to a consumer to derive from four literals. It is a rule of its own, and `triplifier-canvas/src/containment.js` holds it.
+
+A group holds what the node points at, the same term an edge to that node uses: the note behind a `file` node, the URL behind a `link` node, the anchor itself for a text card or a group, which point at nothing.
 
 ```
 <urn:name:Board.canvas%23outer>  rdfs:label    "Entities"
 <urn:name:Board.canvas%23outer>  dct:hasPart   <urn:name:Board.canvas%23inner>
 <urn:name:Board.canvas%23inner>  dct:hasPart   <urn:name:Board.canvas%23card>
+<urn:name:Board.canvas%23inner>  dct:hasPart   <urn:name:Bob>
 ```
 
-Only the smallest containing group, so nesting is a tree and the rest is its transitive closure. `dct:hasPart`, not `schema:hasPart`, which the document domain reserves for a code block or a quotation. A node in no group gets nothing: the canvas already lists it with `schema:about`, and the anchor already names the canvas as its source.
+Only the smallest containing group, so nesting nests and the rest is its transitive closure. `dct:hasPart`, not `schema:hasPart`, which the document domain reserves for a code block or a quotation. A node in no group gets nothing: the canvas already lists it with `schema:about`, and the anchor already names the canvas as its source.
+
+This version of the rule is geometry and nothing else, with limits that stay until it is redone: two groups with the same rectangle hold each other, so the nesting is not always a tree; a tie between two containers of equal area is broken by the node order in the file; a degenerate rectangle (zero or negative size) is not rejected; and a node that sticks out of a group by one pixel is in no group.
 
 A group label is a label. It is not read as a CURIE and it does not name an entity, unlike the prototype this replaces.
 

@@ -177,6 +177,26 @@ test('a group carries its label and holds the nodes drawn inside it', () => {
   assert.ok(!lines(quads).some(line => line.includes(`hasPart> <${anchor('outside')}>`)))
 })
 
+test('a group holds what a node points at, not the anchor that draws it', () => {
+  const quads = run(canvas([
+    { type: 'group', id: 'outer', label: 'Entities', x: 0, y: 0, width: 1000, height: 1000 },
+    { type: 'group', id: 'inner', label: 'Friends', x: 10, y: 10, width: 500, height: 500 },
+    { ...fileNode('note', 'bob/Bob.md'), x: 20, y: 20, width: 100, height: 100 },
+    { type: 'link', id: 'url', url: 'https://example.com/spec', x: 20, y: 200, width: 100, height: 100 },
+    textNode('card', 'Bob', { x: 20, y: 400, width: 100, height: 100 }),
+  ]))
+  const anchor = id => `${NAME}board.canvas%23${id}`
+
+  // A group is a rectangle and points at nothing, so it is held as its anchor.
+  assert.ok(has(quads, `<${anchor('outer')}> <${DCT}hasPart> <${anchor('inner')}>`))
+  // A note in a group is held as the note, a link as its URL.
+  assert.ok(has(quads, `<${anchor('inner')}> <${DCT}hasPart> <${NAME}Bob>`))
+  assert.ok(has(quads, `<${anchor('inner')}> <${DCT}hasPart> <https://example.com/spec>`))
+  assert.ok(!has(quads, `<${anchor('inner')}> <${DCT}hasPart> <${anchor('note')}>`))
+  // A text card points at nothing either.
+  assert.ok(has(quads, `<${anchor('inner')}> <${DCT}hasPart> <${anchor('card')}>`))
+})
+
 test('a labelled edge states a property between the notes the two ends point at', () => {
   const quads = run(canvas(
     [fileNode('n1', 'Bob.md'), fileNode('n2', 'houses/BobHouse.md')],

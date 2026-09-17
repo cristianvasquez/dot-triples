@@ -1,12 +1,11 @@
 import rdf from 'rdf-ext'
 import { nameToURI, vocab } from 'canonical-md'
 import { createInlineExtractor } from 'triplifier-md/inline'
+import { containment } from './containment.js'
 import {
   anchorNode,
-  area,
   canvasLabel,
   canvasNode,
-  contains,
   fileTargetName,
   isAbsolutePredicateIri,
   mediaFragment,
@@ -140,21 +139,6 @@ export function createCanvasProcessor (options = {}) {
     if (toArrow || !fromArrow) emit(from, predicate, to)
   }
 
-  // Each node is a part of the smallest group that holds it, so nested groups
-  // nest and the rest is the transitive closure. A node in no group gets
-  // nothing: the canvas already lists it with schema:about.
-  function emitContainment (placed) {
-    const groups = placed.filter(({ node }) => node.type === 'group' && mediaFragment(node))
-
-    for (const { node, anchor } of placed) {
-      const containers = groups.filter(group => contains(group.node, node))
-      if (!containers.length) continue
-
-      const smallest = containers.reduce((a, b) => (area(b.node) < area(a.node) ? b : a))
-      emit(smallest.anchor, vocab.dctHasPart, anchor)
-    }
-  }
-
   function write (canvasJson) {
     emit(canvas, vocab.type, vocab.File)
     emit(canvas, vocab.label, rdf.literal(canvasLabel(canvasName)))
@@ -162,8 +146,9 @@ export function createCanvasProcessor (options = {}) {
     const nodes = Array.isArray(canvasJson?.nodes) ? canvasJson.nodes : []
     const edges = Array.isArray(canvasJson?.edges) ? canvasJson.edges : []
 
-    // What each node id denotes for an edge. A node with no id is not
-    // addressable and is dropped; so is a repeated id.
+    // What each node id denotes, for an edge and for the group that holds it.
+    // A node with no id is not addressable and is dropped; so is a repeated
+    // id.
     const denotes = new Map()
     const placed = []
 
@@ -178,15 +163,18 @@ export function createCanvasProcessor (options = {}) {
       inline.emitFragmentSelector(anchor, id, vocab.JSON_CANVAS)
 
       const rectangle = mediaFragment(node)
-      if (rectangle) {
-        inline.emitFragmentSelector(anchor, rectangle, vocab.MEDIA_FRAGMENTS)
-        placed.push({ node, anchor })
-      }
+      if (rectangle) inline.emitFragmentSelector(anchor, rectangle, vocab.MEDIA_FRAGMENTS)
 
-      denotes.set(id, describeNode(node, anchor) ?? anchor)
+      const term = describeNode(node, anchor) ?? anchor
+      denotes.set(id, term)
+      // Only a node the canvas draws can be held by a group.
+      if (rectangle) placed.push({ node, anchor, term })
     }
 
-    emitContainment(placed)
+    // The containment rule owns what a group holds; see containment.js.
+    for (const [holder, part] of containment(placed)) {
+      emit(holder, vocab.dctHasPart, part)
+    }
 
     for (const edge of edges) {
       const from = denotes.get(String(edge?.fromNode ?? '').trim())
