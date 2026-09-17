@@ -20,7 +20,10 @@ import {
 const MARKDOWN_LINK = /\[([^\]]+)\]\(([^)\s]+)\)/g
 const WIKI_LINK = /\[\[([^\]]+)\]\]/g
 const TOKEN_REFERENCE = /\[([^\[\]]+)\](?!\()/g
-const NAMED_REFERENCE = /(^|[\s(>])([a-zA-Z][\w+.-]*:[^\s<>)\]},"'`\\^|{}]+)/g
+// A bare IRI in prose. Brackets are excluded from an IRI everywhere except
+// the authority, where RFC 3986 writes an IPv6 address as an IP-literal
+// (`http://[::1]/docs`), so that one form is admitted explicitly.
+const NAMED_REFERENCE = /(^|[\s(>])([a-zA-Z][\w+.-]*:(?:\/\/\[[0-9A-Fa-f:.]+\][^\s<>)\]},"'`\\^|{}]*|[^\s<>)\]},"'`\\^|{}]+))/g
 // The checkbox of a task list item: `- [x]`, `- [ ]` and the Obsidian custom
 // states (`- [/]`, `- [>]`, ...). It is list syntax, not a [token] reference.
 const TASK_CHECKBOX = /^(\s*(?:[-*+]|\d+[.)])\s+)(\[[^\[\]]\])(?=\s|$)/
@@ -45,10 +48,21 @@ export function parseFieldValue(value) {
   return trimmed
 }
 
-// A field line: `key :: value`, optionally after a list marker. The key must
-// not start with '#' (a heading) or ':' .
+// A field line: `key :: value`, optionally after a list marker. `::` is the
+// separator and the whitespace around it is noise, so `key::value`,
+// `key :: value` and `key ::value` are the same field. The key must not start
+// with '#' (a heading) or ':' .
 const FIELD_LINE = /^\s*([^:#][^\n]*?)\s*::\s*(.+?)\s*$/
 const LIST_MARKER = /^\s*[-*+]\s+/
+
+// `::` also occurs inside ordinary text -- an IPv6 authority
+// (`http://[::1]/docs`), a C++ scope, a Rust path -- where it is not a
+// separator and the line is a link or prose. A key is a predicate name, so it
+// carries no link or URL punctuation; a candidate key that does means the
+// `::` belonged to a URL and the line is not a field. This does not catch
+// `std::vector` in prose, whose key (`See std`) is indistinguishable from a
+// real multi-word key such as `lives in`.
+const FIELD_KEY_REJECT = /[[\]()/<>"]/
 
 export function createInlineExtractor(options = {}) {
   const {
@@ -133,10 +147,14 @@ export function createInlineExtractor(options = {}) {
   // `key :: value` on the given subject. Returns false when the line is not a
   // field, so the caller can try the next reading.
   function field(line, subject) {
-    const match = line.replace(LIST_MARKER, '').match(FIELD_LINE)
+    // The list marker and the task checkbox are list syntax, not part of the
+    // key; `- [x] due :: 2026-01-01` is a field on the task.
+    const body = line.replace(TASK_CHECKBOX, '').replace(LIST_MARKER, '')
+    const match = body.match(FIELD_LINE)
     if (!match) return false
 
     const [, key, rawValue] = match
+    if (FIELD_KEY_REJECT.test(key)) return false
     emitObject(subject, resolvePredicate(key.trim()), parseFieldValue(rawValue))
     return true
   }
@@ -170,6 +188,19 @@ export function createInlineExtractor(options = {}) {
       }
     }
 
+    for (const match of line.matchAll(NAMED_REFERENCE)) {
+      const value = match[2]
+      if (!value || !value.trim()) continue
+
+      const start = match.index + match[1].length
+      const end = start + value.length
+      if (rangeOverlaps(occupiedRanges, start, end)) continue
+
+      matched = true
+      occupiedRanges.push([start, end])
+      emitObject(subject, vocab.references, value)
+    }
+
     for (const pattern of [WIKI_LINK, TOKEN_REFERENCE]) {
       for (const match of line.matchAll(pattern)) {
         const [, targetName] = match
@@ -183,19 +214,6 @@ export function createInlineExtractor(options = {}) {
         occupiedRanges.push([start, end])
         emitObject(subject, vocab.references, match[0])
       }
-    }
-
-    for (const match of line.matchAll(NAMED_REFERENCE)) {
-      const value = match[2]
-      if (!value || !value.trim()) continue
-
-      const start = match.index + match[1].length
-      const end = start + value.length
-      if (rangeOverlaps(occupiedRanges, start, end)) continue
-
-      matched = true
-      occupiedRanges.push([start, end])
-      emitObject(subject, vocab.references, value)
     }
 
     return matched

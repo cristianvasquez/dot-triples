@@ -551,6 +551,7 @@ test('curie expansion quad transform maps quads incrementally', async () => {
 // parser stays a line scanner; this table is where the syntax is agreed.
 const REFERENCES = 'http://purl.org/dc/terms/references'
 const LABEL = 'http://www.w3.org/2000/01/rdf-schema#label'
+const COMMENT = 'http://www.w3.org/2000/01/rdf-schema#comment'
 
 const LINE_SEMANTICS = [
   // `key :: value` splits on the first `::`. The left side is the token, the
@@ -560,6 +561,19 @@ const LINE_SEMANTICS = [
   ['uses :: schema:Person', [['urn:token:uses', '<schema:Person>']]],
   ['uses :: 2026-09-18', [['urn:token:uses', '"2026-09-18"']]],
   ['- uses :: [sparql]', [['urn:token:uses', '<urn:token:sparql>']]],
+
+  // The whitespace around `::` is noise. The three spacings are one field.
+  ['uses::sparql', [['urn:token:uses', '"sparql"']]],
+  ['uses ::sparql', [['urn:token:uses', '"sparql"']]],
+  ['uses:: sparql', [['urn:token:uses', '"sparql"']]],
+  ['lives in::Madrid', [['urn:token:lives%20in', '"Madrid"']]],
+  ['rdfs:comment::Alice is the contact.', [[COMMENT, '"Alice is the contact."']]],
+
+  // `::` inside a URL is not a separator. The candidate key carries link or
+  // URL punctuation, so the line keeps its own reading and the link survives.
+  ['[ipv6](http://[::1]/docs)', [[REFERENCES, '<http://[::1]/docs>'], [LABEL, '"ipv6"']]],
+  ['See http://[::1]/docs for the host.', [[REFERENCES, '<http://[::1]/docs>']]],
+  ['[[Note]] covers http://[::1]/docs', [[REFERENCES, '<urn:name:Note>'], [REFERENCES, '<http://[::1]/docs>']]],
 
   // Prose references, each one dct:references.
   ['plain prose, nothing to state', []],
@@ -578,9 +592,10 @@ const LINE_SEMANTICS = [
   ['- [/] Read [sparql] docs', [[REFERENCES, '<urn:token:sparql>']]],
   ['- [x] Ask [[Bob]] about [sparql]', [[REFERENCES, '<urn:name:Bob>'], [REFERENCES, '<urn:token:sparql>']]],
 
-  // A field on a task line: the `::` split is the only rule, so the checkbox
-  // is part of the key. Recorded as it stands, to change when tasks are modelled.
-  ['- [x] due :: 2026-09-18', [['urn:token:%5Bx%5D%20due', '"2026-09-18"']]],
+  // A field on a task line. The checkbox is list syntax, not part of the key.
+  ['- [x] due :: 2026-09-18', [['urn:token:due', '"2026-09-18"']]],
+  ['- [ ] due::2026-09-18', [['urn:token:due', '"2026-09-18"']]],
+  ['1. [>] due :: 2026-09-18', [['urn:token:due', '"2026-09-18"']]],
 ]
 
 test('a body line states exactly what the syntax says it states', () => {
