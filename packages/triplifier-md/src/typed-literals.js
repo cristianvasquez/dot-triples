@@ -6,10 +6,11 @@ const YYYY_MM_DD_SLASH = /^\d{4}\/\d{2}\/\d{2}$/
 const MM_DD_YYYY = /^\d{2}\/\d{2}\/\d{4}$/
 const XSD = 'http://www.w3.org/2001/XMLSchema#'
 // Labels and selector spellings must remain text, even when they look numeric.
+// Full IRIs only: typeQuad runs after mapQuad, which leaves no CURIE.
 const TEXT_PREDICATES = new Set([
-  'rdfs:label', 'http://www.w3.org/2000/01/rdf-schema#label',
-  'rdf:value', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#value',
-  'oa:exact', 'http://www.w3.org/ns/oa#exact',
+  'http://www.w3.org/2000/01/rdf-schema#label',
+  'http://www.w3.org/1999/02/22-rdf-syntax-ns#value',
+  'http://www.w3.org/ns/oa#exact',
 ])
 
 function isValidDateString(value) {
@@ -55,7 +56,8 @@ export function typeQuad(quad) {
   return rdf.quad(
     quad.subject,
     quad.predicate,
-    rdf.literal(quad.object.value, rdf.namedNode(datatype))
+    rdf.literal(quad.object.value, rdf.namedNode(datatype)),
+    quad.graph
   )
 }
 

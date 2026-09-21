@@ -470,8 +470,8 @@ test('typed-literals upgrades plain literals in a later pipe', () => {
 
 test('typed-literals leaves rdfs:label values as plain strings', () => {
   const typed = [
-    typeQuad(rdf.quad(rdf.namedNode('urn:name:hex'), rdf.namedNode('rdfs:label'), rdf.literal('0xd34df00d'))),
-    typeQuad(rdf.quad(rdf.namedNode('urn:name:year'), rdf.namedNode('rdfs:label'), rdf.literal('1956'))),
+    typeQuad(rdf.quad(rdf.namedNode('urn:name:hex'), rdf.namedNode('http://www.w3.org/2000/01/rdf-schema#label'), rdf.literal('0xd34df00d'))),
+    typeQuad(rdf.quad(rdf.namedNode('urn:name:year'), rdf.namedNode('http://www.w3.org/2000/01/rdf-schema#label'), rdf.literal('1956'))),
     typeQuad(rdf.quad(rdf.namedNode('urn:name:date'), rdf.namedNode('http://www.w3.org/2000/01/rdf-schema#label'), rdf.literal('2025-07-18')))
   ]
 
@@ -674,4 +674,12 @@ test('a Markdown link target follows the field-value rule: an unknown scheme is 
   const mapped = triplify('# N\nsee [a](dprod:DataProduct)\n', { file: 'N.md' })
     .map((q) => mapQuad(q, { prefixes: { dprod: 'https://www.omg.org/spec/DPROD/dprod/' } }))
   assert.ok(mapped.some((q) => q.object.value === 'https://www.omg.org/spec/DPROD/dprod/DataProduct'))
+})
+
+test('typed-literals keeps the graph of the quad', () => {
+  const typed = typeQuad(rdf.quad(
+    rdf.namedNode('urn:name:a'), rdf.namedNode('urn:token:n'), rdf.literal('5'), rdf.namedNode('urn:g'),
+  ))
+  assert.equal(typed.object.datatype.value, 'http://www.w3.org/2001/XMLSchema#integer')
+  assert.equal(typed.graph.value, 'urn:g')
 })
