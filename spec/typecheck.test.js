@@ -76,6 +76,6 @@ for (const [name, source] of Object.entries(invalid)) {
   test(name, () => {
     const result = compile(source)
     assert.equal(result.status, 1, result.output)
-    assert.match(result.output, /Couldn't match|Data constructor not in scope|Illegal term-level use/)
+    assert.match(result.output, /Couldn't match|Data constructor (not in|out of) scope|Illegal term-level use/)
   })
 }
