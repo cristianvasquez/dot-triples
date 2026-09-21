@@ -67,9 +67,9 @@ export function urlNode (value) {
 }
 
 // An edge label that is already an absolute IRI is the predicate, verbatim.
-// Anything else goes to the inline extractor, which applies the Markdown field
-// rule: a mapping first, then a CURIE against a known prefix, then
-// `urn:token:<label>`.
+// Anything else is `urn:token:<label>`, as a Markdown field key is, and
+// triplifier-md's mapQuad resolves it: a mapping first, then a CURIE against
+// a known prefix.
 export function isAbsolutePredicateIri (label) {
   const trimmed = String(label).trim()
   if (INVALID_IRI_CHARS.test(trimmed)) return false

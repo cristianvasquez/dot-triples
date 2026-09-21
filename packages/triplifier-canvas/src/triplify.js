@@ -117,8 +117,8 @@ export function createCanvasProcessor (options = {}) {
   }
 
   // A label that is already an absolute IRI is the predicate. Anything else
-  // follows the Markdown field rule: a mapping, then a CURIE against a known
-  // prefix, then urn:token:. Whitespace is collapsed so that a label wrapped
+  // is urn:token:<label>, which mapQuad resolves as it resolves a Markdown
+  // field key. Whitespace is collapsed so that a label wrapped
   // over two lines in the canvas gives one predicate.
   function edgePredicate (label) {
     const text = String(label ?? '').trim().replace(/\s+/g, ' ')

@@ -58,8 +58,9 @@ export const vocab = Object.freeze({
   MEDIA_FRAGMENTS: rdf.namedNode('http://www.w3.org/TR/media-frags/'),
 })
 
-// Frontmatter keys the document model names. Applied to frontmatter only;
-// every other key is a urn:token: predicate.
+// Keys the document model names. They are the default mappings of
+// triplifier-md's mapQuad, so they apply to a frontmatter key and to a body
+// field key alike; every other key stays a urn:token: predicate.
 export const FRONTMATTER_TERMS = Object.freeze({
   title: vocab.label,
   tags: vocab.keywords,
