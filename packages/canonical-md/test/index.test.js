@@ -164,3 +164,14 @@ test('the vocabulary uses the https schema.org namespace and names the fragment 
   assert.equal(vocab.RFC5147.value, 'http://tools.ietf.org/rfc/rfc5147')
   assert.equal(FRONTMATTER_TERMS.tags, vocab.keywords)
 })
+
+test('the prefix table is standard vocabularies only, as plain strings', async () => {
+  const { PREFIXES } = await import('canonical-md/prefixes')
+  assert.ok(Object.isFrozen(PREFIXES))
+  for (const [prefix, namespace] of Object.entries(PREFIXES)) {
+    assert.equal(typeof namespace, 'string', prefix)
+    assert.match(namespace, /^https?:\/\//, prefix)
+  }
+  assert.equal(PREFIXES.schema, 'https://schema.org/')
+  assert.equal(vocab.label.value, `${PREFIXES.rdfs}label`)
+})

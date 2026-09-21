@@ -132,6 +132,24 @@ acme:custom :: some value
   assert.match(nt, /<urn:name:Alice> <urn:token:acme%3Acustom> "some value" \./)
 })
 
+test('options.prefixes replaces the standard prefix table', () => {
+  const content = `# Alice
+acme:custom :: a
+rdfs:comment :: b
+`
+  const predicates = (options) => triplify(content, { file: 'Alice.md', ...options })
+    .filter((q) => q.subject.value === 'urn:name:Alice')
+    .map((q) => q.predicate.value)
+
+  const standard = predicates({})
+  assert.ok(standard.includes('http://www.w3.org/2000/01/rdf-schema#comment'))
+  assert.ok(standard.includes('urn:token:acme%3Acustom'))
+
+  const replaced = predicates({ prefixes: { acme: 'http://acme.example/' } })
+  assert.ok(replaced.includes('http://acme.example/custom'))
+  assert.ok(replaced.includes('urn:token:rdfs%3Acomment'))
+})
+
 test('explicit name takes precedence over file-derived identity', async () => {
   const nt = await serializeQuads(triplify(`# Alice Smith
 role :: Product Manager

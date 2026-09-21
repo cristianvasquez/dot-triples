@@ -39,7 +39,7 @@ import {
 const ARROW = 'arrow'
 
 export function createCanvasProcessor (options = {}) {
-  const { onQuad = () => {}, prefixes = {}, mappings = {} } = options
+  const { onQuad = () => {}, prefixes, mappings = {} } = options
 
   const canvasName = resolveCanvasName(options)
   const canvas = canvasNode(canvasName)

@@ -11,5 +11,5 @@ export function canProcess (absolutePath) {
 }
 
 export function triplifyToQuads (content, options = {}) {
-  return triplifyCanvas(content, options).map(quad => typeQuad(mapQuad(quad)))
+  return triplifyCanvas(content, options).map(quad => typeQuad(mapQuad(quad, options.prefixes)))
 }

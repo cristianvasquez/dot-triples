@@ -57,8 +57,7 @@ export function createTriplifyQuadTransform(options = {}) {
 }
 
 export function createCurieExpansionQuadTransform(options = {}) {
-  const { prefixes: extraPrefixes = {} } = options
-  const prefixes = { ...PREFIXES, ...extraPrefixes }
+  const { prefixes = PREFIXES } = options
   return new Transform({
     objectMode: true,
     transform(quad, encoding, callback) {

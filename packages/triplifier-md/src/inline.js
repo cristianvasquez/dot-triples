@@ -67,12 +67,11 @@ const FIELD_KEY_REJECT = /[[\]()/<>"]/
 export function createInlineExtractor(options = {}) {
   const {
     onQuad = () => {},
-    prefixes: extraPrefixes = {},
+    prefixes = PREFIXES,
     mappings = {},
     wikiContext = () => ({}),
   } = options
 
-  const prefixes = { ...PREFIXES, ...extraPrefixes }
   const describedHeadings = new Set()
   const labeledUrls = new Set()
 

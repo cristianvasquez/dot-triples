@@ -29,7 +29,8 @@
     "registry": "https://registry.npmjs.org/"
   },
   "exports": {
-    ".": "./src/index.js"
+    ".": "./src/index.js",
+    "./prefixes": "./src/prefixes.js"
   },
   "scripts": {
     "test": "node --test"

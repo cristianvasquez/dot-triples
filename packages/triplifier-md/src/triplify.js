@@ -29,7 +29,7 @@ import {
 // triplifier-canvas reuses for the text cards of a canvas.
 
 export function createTriplifyProcessor (options = {}) {
-  const { onQuad = () => {}, prefixes = {}, mappings = {} } = options
+  const { onQuad = () => {}, prefixes, mappings = {} } = options
   const localDocumentNode = documentNode(options)
   const localTopConceptNode = topConceptNode(options)
   const noteName = topConceptName(options)

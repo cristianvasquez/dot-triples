@@ -1,4 +1,7 @@
 import rdf from 'rdf-ext'
+import { PREFIXES } from './prefixes.js'
+
+export { PREFIXES }
 
 // Shared canonical RDF term helpers for both Node and browser consumers.
 // Keep this module standalone: no Node built-ins and no imports from other repo modules.
@@ -14,11 +17,11 @@ const namespaces = {
 const ns = {
   document: rdf.namespace('osg://vocab/document#'),
   resource: rdf.namespace('osg://vocab/resource#'),
-  schema: rdf.namespace('https://schema.org/'),
-  dct: rdf.namespace('http://purl.org/dc/terms/'),
-  oa: rdf.namespace('http://www.w3.org/ns/oa#'),
-  rdf: rdf.namespace('http://www.w3.org/1999/02/22-rdf-syntax-ns#'),
-  rdfs: rdf.namespace('http://www.w3.org/2000/01/rdf-schema#'),
+  schema: rdf.namespace(PREFIXES.schema),
+  dct: rdf.namespace(PREFIXES.dct),
+  oa: rdf.namespace(PREFIXES.oa),
+  rdf: rdf.namespace(PREFIXES.rdf),
+  rdfs: rdf.namespace(PREFIXES.rdfs),
 }
 
 export const vocab = Object.freeze({

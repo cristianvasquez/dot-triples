@@ -1,5 +1,5 @@
 import rdf from 'rdf-ext'
-import { PREFIXES } from './prefixes.js'
+import { PREFIXES } from 'canonical-md/prefixes'
 
 export { PREFIXES }
 
