@@ -68,45 +68,56 @@ export const FRONTMATTER_TERMS = Object.freeze({
   modified: vocab.modified,
 })
 
-function assertTrimmed(s) {
-  if (typeof s === 'string' && s !== s.trim()) {
-    throw new Error(`Value must be pre-trimmed, got: ${JSON.stringify(s)}`)
+function parseIdentifier(value, kind) {
+  if (typeof value !== 'string' || value.length === 0) {
+    throw new TypeError(`${kind} must be a non-empty string`)
   }
+  if (value !== value.trim()) {
+    throw new Error(`Value must be pre-trimmed, got: ${JSON.stringify(value)}`)
+  }
+  // Also rejects unpaired UTF-16 surrogates. Keep Node 18 compatibility.
+  encodeURIComponent(value)
+  return value
+}
+
+// JavaScript represents validated names and tokens as strings. The manifest
+// gives them distinct types; these are the validation boundaries.
+export function parseName(value) {
+  return parseIdentifier(value, 'Name')
+}
+
+export function parseToken(value) {
+  return parseIdentifier(value, 'Token')
 }
 
 export function nameToURI(s) {
-  if (s == null || s === '') {
-    throw new Error('Name must not be null, undefined, or empty')
+  return namespaces.name[encodeURIComponent(parseName(s))]
+}
+
+function identifierFromURI(term, base, parse) {
+  if (!term || term.termType !== 'NamedNode' || typeof term.value !== 'string') return null
+  if (!term.value.startsWith(base)) return null
+  try {
+    return parse(decodeURIComponent(term.value.slice(base.length)))
+  } catch {
+    return null
   }
-  assertTrimmed(s)
-  return namespaces.name[encodeURIComponent(s)]
 }
 
 export function nameFromURI(term) {
-  if (!term || term.termType !== 'NamedNode') return null
-  const base = namespaces.name().value
-  if (!term.value.startsWith(base)) return null
-  return decodeURIComponent(term.value.slice(base.length))
+  return identifierFromURI(term, namespaces.name().value, parseName)
 }
 
 export function tokenToURI(s) {
-  if (s == null || s === '') {
-    throw new Error('Token must not be null, undefined, or empty')
-  }
-  assertTrimmed(s)
-  return namespaces.token[encodeURIComponent(s)]
+  return namespaces.token[encodeURIComponent(parseToken(s))]
 }
 
 export function tokenFromURI(term) {
-  if (!term || term.termType !== 'NamedNode') return null
-  const base = namespaces.token().value
-  if (!term.value.startsWith(base)) return null
-  return decodeURIComponent(term.value.slice(base.length))
+  return identifierFromURI(term, namespaces.token().value, parseToken)
 }
 
 export function tokenToLiteral(s) {
-  assertTrimmed(s)
-  return rdf.literal(String(s))
+  return rdf.literal(parseToken(s))
 }
 
 // A heading name is `<note>#<heading>`, split at the first '#'. A note name
@@ -126,17 +137,42 @@ export function lineRange(firstLine, lastLine = firstLine) {
   return `line=${firstLine - 1},${lastLine}`
 }
 
+// Selectors describe values independently of a source. Equal selectors can
+// therefore be shared. Encode each component separately to avoid collisions
+// between syntax, value, and source, and keep these out of urn:name: mapping.
+function encodeSelectorValue(value) {
+  if (typeof value !== 'string') throw new TypeError('Selector value must be a string')
+  return encodeURIComponent(value)
+}
+
+function encodeNode(node) {
+  if (node?.termType !== 'NamedNode' || typeof node.value !== 'string' || !node.value) {
+    throw new TypeError('Selector syntax and reference source must be NamedNodes with non-empty IRIs')
+  }
+  return encodeURIComponent(node.value)
+}
+
+export function fragmentSelectorNode(value, conformsTo) {
+  return rdf.namedNode(`urn:selector:fragment:${encodeNode(conformsTo)}:${encodeSelectorValue(value)}`)
+}
+
+export function textQuoteSelectorNode(text) {
+  return rdf.namedNode(`urn:selector:quote:${encodeSelectorValue(text)}`)
+}
+
+// A reference selects a location in a particular source. Its identity changes
+// when the location changes, even if the selected text remains the same.
+export function fragmentReferenceNode(source, value, conformsTo) {
+  return rdf.namedNode(`urn:reference:${encodeNode(source)}:${encodeNode(conformsTo)}:${encodeSelectorValue(value)}`)
+}
+
 export function getNameFromPath(filePath) {
   const fileName = String(filePath).split(/[\\/]/).pop() ?? ''
   return fileName.replace(/\.md$/i, '')
 }
 
 export function getDocName(name) {
-  if (name == null || name === '') {
-    throw new Error('Name must not be null, undefined, or empty')
-  }
-  assertTrimmed(name)
-  return `${name}.md`
+  return `${parseName(name)}.md`
 }
 
 function pathToFileURL(filepath) {

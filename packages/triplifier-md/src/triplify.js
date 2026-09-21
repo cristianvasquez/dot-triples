@@ -1,6 +1,6 @@
 import rdf from 'rdf-ext'
 import { createFenceParser } from './fences.js'
-import { FRONTMATTER_TERMS, vocab } from 'canonical-md'
+import { FRONTMATTER_TERMS, fragmentReferenceNode, lineRange, vocab } from 'canonical-md'
 import { parseSimpleYaml, parseScalar } from './frontmatter.js'
 import { createInlineExtractor, extractPlainText, parseFieldValue } from './inline.js'
 import {
@@ -20,7 +20,7 @@ import {
 //                                     identity), and per occurrence an RFC 5147
 //                                     line selector (where) and a text quote of
 //                                     the heading line (what)
-//   a part        blank node          a code block or blockquote: a reference
+//   a part        urn:reference:...    a code block or blockquote: a reference
 //                                     with line and quote selectors, typed
 //                                     schema:SoftwareSourceCode or schema:Quotation
 //
@@ -139,7 +139,7 @@ export function createTriplifyProcessor (options = {}) {
   }
 
   function emitPart (kind, firstLine, lastLine, text, language = null) {
-    const part = rdf.blankNode()
+    const part = fragmentReferenceNode(localTopConceptNode, lineRange(firstLine, lastLine), vocab.RFC5147)
     emit(currentSubject(), vocab.hasPart, part)
     emit(part, vocab.type, vocab.ResourceReference)
     emit(part, vocab.type, kind)

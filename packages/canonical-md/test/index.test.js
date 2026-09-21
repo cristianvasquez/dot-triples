@@ -4,14 +4,19 @@ import * as fc from 'fast-check'
 import rdf from 'rdf-ext'
 import {
   FRONTMATTER_TERMS,
+  fragmentReferenceNode,
+  fragmentSelectorNode,
   fileURLToPath,
   getDocName,
   getNameFromPath,
   lineRange,
   nameFromURI,
   nameToURI,
+  parseName,
+  parseToken,
   pathToFileURL,
   splitHeadingName,
+  textQuoteSelectorNode,
   tokenFromURI,
   tokenToLiteral,
   tokenToURI,
@@ -26,6 +31,45 @@ const nameArb = fc.string({ unit: 'grapheme', minLength: 1 }).filter(
 const tokenArb = fc.string({ unit: 'grapheme', minLength: 1 }).filter(
   s => s === s.trim() && s.length > 0 && !s.includes('\n')
 )
+
+test('identifier validation preserves valid text without normalization', () => {
+  for (const parse of [parseName, parseToken]) {
+    for (const value of ['Alice', 'lives in', 'A\nB', 'café', 'e\u0301', '🦊', 'A\uFEFFB']) {
+      assert.equal(parse(value), value)
+    }
+  }
+})
+
+test('identifier boundaries reject invalid strings and implicit coercion', () => {
+  const invalid = [null, undefined, '', ' ', '\uFEFFAlice', 'Alice\u00A0',
+    '\uD800', '\uDC00', 'A\uD800B', 42, true, {}, ['Alice']]
+  for (const fn of [parseName, parseToken, nameToURI, tokenToURI, tokenToLiteral, getDocName]) {
+    for (const value of invalid) {
+      assert.throws(() => fn(value), `${fn.name} accepted ${JSON.stringify(value)}`)
+    }
+  }
+})
+
+test('reverse helpers reject malformed encoding and invalid decoded identifiers', () => {
+  for (const [base, decode] of [['urn:name:', nameFromURI], ['urn:token:', tokenFromURI]]) {
+    for (const suffix of ['', '%', '%GG', '%C3', '%ED%A0%80', '%20Alice', 'Alice%20', '\uD800']) {
+      assert.equal(decode(rdf.namedNode(base + suffix)), null, base + suffix)
+    }
+    assert.equal(decode({ termType: 'NamedNode', value: 42 }), null)
+    assert.equal(decode(rdf.namedNode(base + 'caf%C3%A9')), 'café')
+    assert.equal(decode(rdf.namedNode(base + 'A%20B')), 'A B')
+  }
+})
+
+test('raw path and heading components require separate name validation', () => {
+  const basename = getNameFromPath('.md')
+  assert.equal(basename, '')
+  assert.throws(() => parseName(basename))
+  for (const name of ['#Heading', 'Alice #Heading']) {
+    const { note } = splitHeadingName(parseName(name))
+    assert.throws(() => parseName(note))
+  }
+})
 
 test('nameToURI / nameFromURI round-trip', () => {
   fc.assert(fc.property(nameArb, s => {
@@ -155,6 +199,36 @@ test('lineRange follows RFC 5147: positions from 0, a 1-based line L is line=L-1
   assert.equal(lineRange(12, 14), 'line=11,14')
   assert.throws(() => lineRange(0))
   assert.throws(() => lineRange(5, 4))
+})
+
+test('selector URIs preserve values and distinguish syntax, type, and component boundaries', () => {
+  for (const value of ['', ' leading and trailing ', 'café 🦊\n"<>#%:']) {
+    const selector = fragmentSelectorNode(value, vocab.RFC5147)
+    assert.equal(selector.termType, 'NamedNode')
+    assert.equal(decodeURIComponent(selector.value.split(':').at(-1)), value)
+    assert.notEqual(selector.value, fragmentSelectorNode(value, vocab.OBSIDIAN_LINKS).value)
+    assert.notEqual(selector.value, textQuoteSelectorNode(value).value)
+    assert.equal(decodeURIComponent(textQuoteSelectorNode(value).value.slice('urn:selector:quote:'.length)), value)
+  }
+  assert.notEqual(fragmentSelectorNode('b:c', rdf.namedNode('urn:a')).value,
+    fragmentSelectorNode('c', rdf.namedNode('urn:a:b')).value)
+  assert.notEqual(textQuoteSelectorNode('a b').value, textQuoteSelectorNode('a%20b').value)
+  const source = nameToURI('Example')
+  assert.notEqual(fragmentReferenceNode(source, 'line=0,1', vocab.RFC5147).value,
+    nameToURI('Example#line=0,1').value)
+})
+
+test('selector helpers reject non-string values and unnamed sources or syntaxes', () => {
+  for (const value of [null, undefined, 42, {}, '\uD800']) {
+    assert.throws(() => textQuoteSelectorNode(value))
+    assert.throws(() => fragmentSelectorNode(value, vocab.RFC5147))
+    assert.throws(() => fragmentReferenceNode(nameToURI('Example'), value, vocab.RFC5147))
+  }
+  for (const term of [rdf.blankNode(), rdf.literal('urn:test'), null, rdf.namedNode('')]) {
+    assert.throws(() => fragmentSelectorNode('x', term))
+    assert.throws(() => fragmentReferenceNode(term, 'x', vocab.RFC5147))
+    assert.throws(() => fragmentReferenceNode(nameToURI('Example'), 'x', term))
+  }
 })
 
 test('the vocabulary uses the https schema.org namespace and names the fragment syntaxes', () => {

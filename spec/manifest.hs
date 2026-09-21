@@ -1,17 +1,20 @@
-{-# LANGUAGE DataKinds              #-}
 {-# LANGUAGE DuplicateRecordFields  #-}
-{-# LANGUAGE GADTs                  #-}
-{-# LANGUAGE KindSignatures         #-}
+{-# LANGUAGE EmptyDataDecls         #-}
 
 -- | dot-triples: package interfaces and behavior.
 --
 -- This file is the documentation source for the library. The signatures describe JavaScript interfaces through Haskell types.
--- The function bodies are stubs. GHC checks this file, but does not check JavaScript conformance.
+-- The function bodies are stubs. GHC checks type distinctions and composition, not JavaScript conformance.
+-- pnpm test:spec also checks that invalid compositions fail to compile. JavaScript tests check runtime behavior.
+-- Name and Token are validated domain values. JavaScript stores both as strings and validates them at public helper boundaries.
+-- Thus nameToUri is total for a Name; JS nameToURI can still throw when given an unvalidated string.
+-- Iri is distinct text, not proof of IRI syntax validity. Readers can emit unrepaired NamedNodes.
 -- Tests under packages/*/test check implementation behavior. The known defects below qualify the contract rules.
 --
 -- Contract notation:
 --   IO a             filesystem, child process, callback, or stream effects
---   Either Error a   JavaScript can throw
+--   Either Error a   library validation can fail for values within the stated input type
+--   IO actions       can also propagate exceptions from caller callbacks
 --   Maybe a          JavaScript can return null or undefined
 --   Stream a         single-pass Node stream
 --   LAW (tested)     property with a named test
@@ -37,7 +40,7 @@ module DotTriples.Manifest where
 -- Install and test from the repository root:
 --   pnpm install
 --   pnpm test
---   ghc -fno-code spec/manifest.hs
+--   pnpm test:spec   # requires GHC; positive and negative compilation checks
 --
 -- Both CLIs read content from stdin. Supply the file path as a positional argument for identity.
 --   triplify note.md < note.md
@@ -99,25 +102,35 @@ module DotTriples.Manifest where
 -- RDF core (the RDF/JS data model, as provided by rdf-ext)
 --------------------------------------------------------------------------------
 
-type Iri      = String
+newtype Iri   = Iri String  -- ^ IRI text, distinct from a NamedNode containing it.
 type Lexical  = String
 type LangTag  = String
-type Datatype = Iri
+type Datatype = NamedNode
 
+newtype NamedNode = NamedNode Iri
+newtype BlankNode = BlankNode String
+data Literal = Literal Lexical (Maybe LangTag) Datatype
+
+-- A term is a sum of node types, not the return type of every RDF helper.
 data Term
-  = NamedNode    Iri
-  | BlankNode    String
-  | Literal      Lexical (Maybe LangTag) Datatype
-  | DefaultGraph                            -- ^ the "no graph" graph term
+  = TNamed NamedNode
+  | TBlank BlankNode
+  | TLiteral Literal
+  | TDefaultGraph
+
+-- Ordinary RDF quads. Variables and quoted triples are outside this reader model.
+data SubjectTerm = SubjectNamed NamedNode | SubjectBlank BlankNode
+data ObjectTerm = ObjectNamed NamedNode | ObjectBlank BlankNode | ObjectLiteral Literal
+data GraphTerm = GraphNamed NamedNode | GraphBlank BlankNode | DefaultGraph
 
 data Quad = Quad
-  { subject   :: Term
-  , predicate :: Term
-  , object    :: Term
-  , graph     :: Term
+  { subject   :: SubjectTerm
+  , predicate :: NamedNode
+  , object    :: ObjectTerm
+  , graph     :: GraphTerm
   }
 
-data Stream a      -- ^ async, single-pass sequence.
+data Stream a      -- ^ async, single-pass sequence; consumption can fail with a stream error.
 type Error    = String
 type Text     = String
 
@@ -137,31 +150,48 @@ type Text     = String
 --
 -- Encoding preserves case and whitespace inside the supplied name. Callers trim syntax before they call the helpers.
 
-type Name  = String   -- ^ e.g. "Alice", "Alice#Skills", "Board.canvas", "dprod:DataProduct".
-type Token = String   -- ^ e.g. "lives in", "sh:path".
+-- Opaque domain types: non-empty, pre-trimmed, well-formed Unicode strings.
+-- No public constructor can bypass validation. Internal whitespace and case are preserved.
+data Name    -- ^ e.g. "Alice", "Alice#Skills", "Board.canvas", "dprod:DataProduct".
+data Token   -- ^ e.g. "lives in", "sh:path".
 
--- | Throws on null, empty, or untrimmed input.
-nameToUri   :: Name  -> Either Error Term     -- ^ JS nameToURI.
-tokenToUri  :: Token -> Either Error Term     -- ^ JS tokenToURI.
-nameFromUri :: Term  -> Maybe Name            -- ^ Nothing unless a urn:name: NamedNode.
-tokenFromUri :: Term -> Maybe Token           -- ^ Nothing unless a urn:token: NamedNode.
-tokenToLiteral :: Token -> Either Error Term  -- ^ plain literal; throws when untrimmed.
+parseName  :: String -> Either Error Name    -- ^ JS parseName; throws on invalid input.
+parseToken :: String -> Either Error Token   -- ^ JS parseToken; throws on invalid input.
 
+nameToUri      :: Name -> NamedNode          -- ^ JS nameToURI; urn:name:.
+tokenToUri     :: Token -> NamedNode         -- ^ JS tokenToURI; urn:token:.
+nameFromUri    :: NamedNode -> Maybe Name    -- ^ Nothing for another namespace or invalid decoded text.
+tokenFromUri   :: NamedNode -> Maybe Token   -- ^ Nothing for another namespace or invalid decoded text.
+tokenToLiteral :: Token -> Literal           -- ^ xsd:string literal.
+
+-- JS reverse helpers additionally accept non-NamedNode terms and null, returning null.
 -- LAW (round trip, tested: canonical-md/test/index.test.js, fast-check):
---   nameFromUri  <$> nameToUri  n == Right (Just n)
---   tokenFromUri <$> tokenToUri t == Right (Just t)
+--   nameFromUri (nameToUri n) == Just n
+--   tokenFromUri (tokenToUri t) == Just t
+-- These are semantic equalities; opaque Name and Token have no Haskell Eq implementation here.
 
--- | A heading name is "<note>#<heading>", split at the FIRST '#'.
-splitHeadingName :: Name -> (Name, Maybe String)
+-- | Split at the FIRST '#'. Components are raw text: "#Heading" has an empty note,
+-- and "Alice #Heading" has an untrimmed note. Validate a component before using it as a Name.
+splitHeadingName :: Name -> (String, Maybe String)
 
 -- | RFC 5147 line range for 1-based inclusive lines: line 10 alone is
 -- "line=9,10". Throws unless 1 <= first <= last.
 lineRange :: Int -> Int -> Either Error String
 
-getNameFromPath :: FilePath -> Name           -- ^ basename, trailing .md removed without case sensitivity.
-getDocName      :: Name -> Either Error Name  -- ^ name ++ ".md"; throws when empty/untrimmed.
-pathToFileUrl   :: FilePath -> Term           -- ^ file:// NamedNode, per-segment encoded.
-fileUrlToPath   :: Term -> Either Error FilePath  -- ^ throws unless file://.
+-- | Deterministic structural IRIs. Each component is encodeURIComponent-encoded separately.
+-- Fragment selector: urn:selector:fragment:<syntax>:<value>.
+-- Text quote selector: urn:selector:quote:<exact text>.
+-- Reference: urn:reference:<source IRI>:<syntax>:<value>.
+-- Equal selectors are shared across resources. References remain scoped to their source.
+-- Empty selector values and whitespace are preserved; encoding rejects malformed Unicode.
+fragmentSelectorNode :: String -> NamedNode -> Either Error NamedNode
+textQuoteSelectorNode :: String -> Either Error NamedNode
+fragmentReferenceNode :: NamedNode -> String -> NamedNode -> Either Error NamedNode
+
+getNameFromPath :: FilePath -> String         -- ^ raw basename, trailing .md removed; may be empty or untrimmed.
+getDocName      :: Name -> Name               -- ^ name ++ ".md"; preserves Name validity.
+pathToFileUrl   :: FilePath -> Either Error NamedNode  -- ^ file://; encoding can reject malformed Unicode.
+fileUrlToPath   :: NamedNode -> Either Error FilePath  -- ^ fails unless file:// with decodable segments.
 
 --------------------------------------------------------------------------------
 -- Vocabulary and tables  (canonical-md: vocab, FRONTMATTER_TERMS, prefixes)
@@ -170,18 +200,18 @@ fileUrlToPath   :: Term -> Either Error FilePath  -- ^ throws unless file://.
 -- | The structural terms of the document model (@osg/model shapes/document.ttl,
 -- shapes/resource.ttl). The only terms a reader emits besides deferred ones.
 data Vocab = Vocab
-  { vType, vValue, vLabel                      :: Term  -- rdf:type, rdf:value, rdfs:label
-  , vFile, vResource, vResourceReference       :: Term  -- document:File, resource:*
-  , vSource, vSelector                         :: Term  -- resource:source, resource:selector
-  , vAbout, vHasPart, vKeywords                :: Term  -- schema:*
-  , vProgrammingLanguage                       :: Term
-  , vSoftwareSourceCode, vQuotation            :: Term
-  , vReferences, vDctHasPart                   :: Term  -- dct:references, dct:hasPart
-  , vCreated, vModified, vConformsTo           :: Term
-  , vFragmentSelector, vTextQuoteSelector      :: Term  -- oa:*
-  , vExact                                     :: Term
-  , vObsidianLinks, vRfc5147                   :: Term  -- fragment syntaxes a selector
-  , vJsonCanvas, vMediaFragments               :: Term  -- conforms to
+  { vType, vValue, vLabel                      :: NamedNode  -- rdf:type, rdf:value, rdfs:label
+  , vFile, vResource, vResourceReference       :: NamedNode  -- document:File, resource:*
+  , vSource, vSelector                         :: NamedNode  -- resource:source, resource:selector
+  , vAbout, vHasPart, vKeywords                :: NamedNode  -- schema:*
+  , vProgrammingLanguage                       :: NamedNode
+  , vSoftwareSourceCode, vQuotation            :: NamedNode
+  , vReferences, vDctHasPart                   :: NamedNode  -- dct:references, dct:hasPart
+  , vCreated, vModified, vConformsTo           :: NamedNode
+  , vFragmentSelector, vTextQuoteSelector      :: NamedNode  -- oa:*
+  , vExact                                     :: NamedNode
+  , vObsidianLinks, vRfc5147                   :: NamedNode  -- fragment syntaxes a selector
+  , vJsonCanvas, vMediaFragments               :: NamedNode  -- conforms to
   }
 vocab :: Vocab
 
@@ -196,8 +226,9 @@ type Prefixes = [(Prefix, Iri)]
 -- http(s) namespace, schema = "https://schema.org/".
 prefixes :: Prefixes   -- ^ JS PREFIXES.
 
--- | A mapping value: a term, a CURIE, or an absolute IRI.
-data MappingValue = MTerm Term | MCurieOrIri String
+-- | A predicate mapping: a NamedNode, a CURIE, or an absolute IRI.
+-- JS rejects other term kinds when the mapping is used.
+data MappingValue = MNamedNode NamedNode | MCurieOrIri String
 type Mappings     = [(Token, MappingValue)]
 
 -- | The keys the document model names: title -> rdfs:label, tags ->
@@ -228,10 +259,10 @@ isKnownAbsoluteIri :: String -> Bool
 -- Markdown link target, a canvas link node, a canvas edge label.
 --   knownIri   t = the IRI t when its scheme is known
 --   iriOrName  t = knownIri t, else urn:name:<t>
--- Both are Nothing when t is empty or has a character no IRI may carry
+-- Both report absence when t is empty or has a character no IRI may carry
 -- (space, <, >, ", {, }, |, \, ^, `); the caller decides if that is an error.
-knownIri  :: String -> Maybe Term
-iriOrName :: String -> Maybe Term
+knownIri  :: String -> Maybe NamedNode
+iriOrName :: String -> Either Error (Maybe NamedNode)  -- ^ deferred-name encoding can reject malformed Unicode.
 
 -- | The shape of a field or frontmatter value, decided by its text alone.
 data ValueShape
@@ -245,8 +276,8 @@ data ValueShape
 data WikiContext = WikiContext { noteName :: Maybe Name, noteTitle :: Maybe String }
 
 -- | triplifier-md src/terms.js objectTerm. An IRI-shaped value goes through
--- 'iriOrName'; it throws where 'iriOrName' is Nothing.
-objectTerm :: WikiContext -> String -> Either Error Term
+-- 'iriOrName'; it throws where 'iriOrName' reports absence or an encoding error.
+objectTerm :: WikiContext -> String -> Either Error ObjectTerm
 
 --------------------------------------------------------------------------------
 -- Markdown reader  (packages/triplifier-md — src/triplify.js, src/inline.js)
@@ -254,7 +285,7 @@ objectTerm :: WikiContext -> String -> Either Error Term
 
 -- | Caller identity. 'name' wins over 'file'; one of them is required.
 data ReadOpts = ReadOpts
-  { name :: Maybe Name
+  { name :: Maybe String  -- ^ raw JS option; the reader trims and validates it.
   , file :: Maybe FilePath
   }
 
@@ -265,8 +296,11 @@ data ReadOpts = ReadOpts
 --                                            note; Obsidian fragment selector
 --                                            (identity), RFC 5147 line selector and
 --                                            text quote per occurrence
---   a part       blank node                  a code block or blockquote:
+--   a part       urn:reference:...           a code block or blockquote:
 --                                            schema:SoftwareSourceCode | schema:Quotation
+-- Readers mint no blank nodes. Parts use the note IRI and RFC 5147 line range;
+-- moving a part changes its IRI. Existing file, note, heading, and canvas anchor IRIs are unchanged.
+-- Structural IRIs are outside urn:name: and urn:token:, so mapQuad does not expand them.
 
 -- | The current subject of a body line: the latest heading, else the note once
 -- the first H1 is seen, else the file.
@@ -294,14 +328,15 @@ fieldKeyRejected :: String -> Bool
 -- | The reusable inline layer (fields, prose references, selectors, the
 -- identity a heading link implies). triplifier-canvas runs the same one.
 data InlineExtractor = InlineExtractor
-  { field       :: String -> Term -> Bool   -- ^ False when the line is not a field.
-  , references  :: String -> Term -> Bool
-  , emitQuoteSelector    :: Term -> String -> Term
-  , emitFragmentSelector :: Term -> String -> Term -> Term
-  , describeHeadingIfAny :: Term -> ()
-  , resolvePredicate     :: Token -> Term   -- ^ always urn:token:<key>
+  { field       :: String -> SubjectTerm -> IO (Either Error Bool)  -- ^ False when not a field.
+  , references  :: String -> SubjectTerm -> IO (Either Error Bool)
+  , emitQuoteSelector    :: SubjectTerm -> String -> IO NamedNode
+  , emitFragmentSelector :: SubjectTerm -> String -> NamedNode -> IO NamedNode
+  , describeHeadingIfAny :: Term -> IO (Either Error ())
+  , resolvePredicate     :: Token -> NamedNode   -- ^ always urn:token:<key>
   }
-createInlineExtractor :: (Quad -> IO ()) -> WikiContext -> InlineExtractor
+-- The context is a callback: the note title can change while reading.
+createInlineExtractor :: (Quad -> IO ()) -> IO WikiContext -> IO InlineExtractor
 
 -- | Shared fence parser (public export: triplifier-md/fences).
 -- An opening fence has at least three backticks or tildes and at most three leading spaces.
@@ -314,10 +349,10 @@ createFenceParser :: IO FenceParser
 -- | Line-at-a-time processor; 'triplify' and the stream transform drive the
 -- same one, so both count lines alike.
 data Processor = Processor
-  { writeLine :: String -> IO ()
-  , end       :: IO ()          -- ^ closes an open fence (CommonMark), flushes a quote
+  { writeLine :: String -> IO (Either Error ())
+  , end       :: IO (Either Error ())          -- ^ closes an open fence (CommonMark), flushes a quote
   }
-createTriplifyProcessor :: ReadOpts -> (Quad -> IO ()) -> Either Error Processor
+createTriplifyProcessor :: ReadOpts -> (Quad -> IO ()) -> IO (Either Error Processor)
 triplify                :: Text -> ReadOpts -> Either Error [Quad]
 
 -- LAW (cross-document identity): [[Alice#Skills]] in
@@ -329,8 +364,10 @@ triplify                :: Text -> ReadOpts -> Either Error [Quad]
 --------------------------------------------------------------------------------
 
 -- | "prefix:local" -> namespace ++ local. Nothing when the prefix is unknown,
--- when there is no prefix, or when local starts with "//" (an IRI with an
--- authority, e.g. osg://repo/..., is never a CURIE).
+-- when there is no prefix, when local starts with "//" (an IRI with an
+-- authority, e.g. osg://repo/..., is never a CURIE), or when local has a
+-- character no IRI may carry (whitespace, <, >, ", {, }, |, \, ^, `).
+-- mapQuad applies 'sanitizeForNQuads' rules to every expansion.
 expandCurie :: Prefixes -> String -> Maybe Iri
 
 data MapOpts = MapOpts
@@ -347,11 +384,16 @@ data MapOpts = MapOpts
 --   otherwise                                -> unchanged (a raw NamedNode is NOT parsed)
 --
 -- A urn:token: in subject or object position ([token]) is not mapped.
+-- Invalid deferred identifiers are treated as ordinary IRIs and sanitized.
+-- JS rejects invalid predicate mapping types; MappingValue excludes these inputs.
 mapQuad :: MapOpts -> Quad -> Quad
 
 -- LAW (unknown stays deferred, tested: triplifier-md "an unknown CURIE stays a
 -- name as an object and a token as a key"): with no matching prefix,
 -- "acme:k :: acme:v" gives <urn:token:acme%3Ak> <urn:name:acme%3Av>.
+-- LAW (valid expansion, tested: triplifier-md "a CURIE-like text that no IRI
+-- may carry stays deferred"): "schema: name :: Alice" gives
+-- <urn:token:schema%3A%20name>, never <https://schema.org/ name>.
 -- LAW (osg:// safe, tested: triplifier-md "mapQuad leaves an IRI with an
 -- authority alone"): even with an "osg" prefix, osg://repo/x is unchanged.
 
@@ -377,7 +419,7 @@ typeQuad :: Quad -> Quad
 canProcessMd :: FilePath -> Bool     -- ^ ends with ".md".
 
 -- | The whole library for one Markdown text, buffered.
---   triplifyToQuads t o = map (mapQuad o) <$> triplify t o
+--   triplifyToQuads t readOpts mapOpts = map (mapQuad mapOpts) <$> triplify t readOpts
 triplifyToQuads :: Text -> ReadOpts -> MapOpts -> Either Error [Quad]
 
 type QuadTransform = Stream Quad -> Stream Quad
@@ -425,17 +467,17 @@ parseCanvas :: Text -> Either Error Canvas   -- ^ JSON.parse; also accepts an ob
 --   an anchor    urn:name:<name>.canvas%23<id>   resource:ResourceReference; source the
 --                                                canvas; JSON Canvas fragment selector (id)
 --                                                and media fragment "xywh=x,y,w,h"
-resolveCanvasName :: ReadOpts -> Either Error Name   -- ^ 'name' wins; else the basename of 'file'.
+resolveCanvasName :: ReadOpts -> Either Error String   -- ^ raw text: 'name' wins; else the basename of 'file'.
 canvasLabel       :: Name -> String                  -- ^ name without ".canvas".
-anchorNode        :: Name -> String -> Term          -- ^ urn:name:<name>#<id>.
-mediaFragment     :: Rect -> String                  -- ^ "xywh=x,y,w,h", canvas coordinates.
+anchorNode        :: Name -> String -> Either Error NamedNode          -- ^ urn:name:<name>#<id>.
+mediaFragment     :: Rect -> Maybe String                  -- ^ "xywh=x,y,w,h"; Nothing for non-finite coordinates.
 
 -- | What a node denotes: the note behind a file node (bob/Bob.md -> urn:name:Bob,
 -- img.png keeps its extension, a subpath gives the heading IRI), 'iriOrName' of
 -- the URL of a link node (Nothing, and no reference, when that is Nothing). A text or group node denotes nothing, and its anchor stands for it.
 -- The anchor dct:references what the node denotes. A text card runs the
 -- Markdown 'InlineExtractor' on its lines (fields and prose, fenced code skipped).
-denotes :: Name -> CanvasNode -> Maybe Term
+denotes :: Name -> CanvasNode -> Either Error (Maybe NamedNode)
 
 -- | An edge states a property between what its two ends denote.
 --   label empty                        -> dct:references
@@ -444,7 +486,7 @@ denotes :: Name -> CanvasNode -> Maybe Term
 --                                         resolved later by 'mapQuad'
 -- Direction from the arrowheads: toEnd arrow or no arrowhead at all -> from p to;
 -- fromEnd arrow -> to p from; both -> both. An edge to an unknown node states nothing.
-edgeQuads              :: (String -> Maybe Term) -> CanvasEdge -> [Quad]
+edgeQuads              :: (String -> Maybe NamedNode) -> CanvasEdge -> Either Error [Quad]
 
 -- | The containment rule (src/containment.js), the one relation a canvas does
 -- not state: each placed node is dct:hasPart of the SMALLEST group whose
@@ -454,14 +496,14 @@ edgeQuads              :: (String -> Maybe Term) -> CanvasEdge -> [Quad]
 -- rejected; a node sticking out of a group is in no group.
 contains    :: CanvasNode -> CanvasNode -> Bool
 area        :: CanvasNode -> Double
-containment :: [(CanvasNode, Term {- anchor -}, Term {- denotes -})] -> [(Term, Term)]
+containment :: [(CanvasNode, NamedNode {- anchor -}, NamedNode {- denotes -})] -> [(NamedNode, NamedNode)]
 
-createCanvasProcessor :: ReadOpts -> (Quad -> IO ()) -> Either Error (Canvas -> IO ())
+createCanvasProcessor :: ReadOpts -> (Quad -> IO ()) -> IO (Either Error (Canvas -> IO (Either Error ())))
 triplifyCanvas        :: Text -> ReadOpts -> Either Error [Quad]
 
 canProcessCanvas       :: FilePath -> Bool   -- ^ ends with ".canvas".
 triplifyCanvasToQuads  :: Text -> ReadOpts -> MapOpts -> Either Error [Quad]
--- ^ JS triplifyToQuads: map (mapQuad o) <$> triplifyCanvas t o.
+-- ^ JS triplifyToQuads: reader output followed by mapQuad.
 createCanvasQuadTransform :: ReadOpts -> Stream Text -> Stream Quad
 -- ^ buffers the whole file (JSON is not line-oriented); a stream for symmetry only.
 
@@ -489,7 +531,7 @@ data SparqlAst
 
 -- | repo-uri CLI: a path to its osg:// repository URI.
 getRepoUri            :: FilePath -> IO (Either Error Iri)
-resolveRewriteContext :: Maybe FilePath -> Maybe FilePath {- repoPath -} -> Maybe Iri -> IO RewriteContext
+resolveRewriteContext :: Maybe FilePath -> Maybe FilePath {- repoPath -} -> Maybe Iri -> IO (Either Error RewriteContext)
 
 --------------------------------------------------------------------------------
 -- Compile-only stubs
@@ -498,6 +540,8 @@ resolveRewriteContext :: Maybe FilePath -> Maybe FilePath {- repoPath -} -> Mayb
 manifestOnly :: a
 manifestOnly = error "signature-level manifest only"
 
+parseName = manifestOnly
+parseToken = manifestOnly
 nameToUri = manifestOnly
 tokenToUri = manifestOnly
 nameFromUri = manifestOnly
@@ -505,6 +549,9 @@ tokenFromUri = manifestOnly
 tokenToLiteral = manifestOnly
 splitHeadingName = manifestOnly
 lineRange = manifestOnly
+fragmentSelectorNode = manifestOnly
+textQuoteSelectorNode = manifestOnly
+fragmentReferenceNode = manifestOnly
 getNameFromPath = manifestOnly
 getDocName = manifestOnly
 pathToFileUrl = manifestOnly

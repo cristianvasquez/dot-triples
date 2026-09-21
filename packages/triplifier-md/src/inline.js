@@ -1,5 +1,5 @@
 import rdf from 'rdf-ext'
-import { lineRange, nameFromURI, nameToURI, splitHeadingName, vocab } from 'canonical-md'
+import { fragmentSelectorNode, lineRange, nameFromURI, nameToURI, splitHeadingName, textQuoteSelectorNode, vocab } from 'canonical-md'
 import {
   isAbsoluteIri,
   objectTerm,
@@ -113,7 +113,7 @@ export function createInlineExtractor(options = {}) {
   // syntaxes in use: Obsidian links for a heading, RFC 5147 for a line range,
   // and, in triplifier-canvas, the JSON Canvas node id and a media fragment.
   function emitFragmentSelector(subject, value, conformsTo) {
-    const selector = rdf.blankNode()
+    const selector = fragmentSelectorNode(value, conformsTo)
     emit(subject, vocab.selector, selector)
     emit(selector, vocab.type, vocab.FragmentSelector)
     emit(selector, vocab.value, rdf.literal(value))
@@ -126,7 +126,7 @@ export function createInlineExtractor(options = {}) {
   }
 
   function emitQuoteSelector(subject, text) {
-    const selector = rdf.blankNode()
+    const selector = textQuoteSelectorNode(text)
     emit(subject, vocab.selector, selector)
     emit(selector, vocab.type, vocab.TextQuoteSelector)
     emit(selector, vocab.exact, rdf.literal(text))

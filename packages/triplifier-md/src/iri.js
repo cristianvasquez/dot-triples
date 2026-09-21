@@ -39,6 +39,10 @@ export function isKnownAbsoluteIri(value) {
 // Characters no IRI may carry in N-Quads, not even percent-encoded later.
 const INVALID_IRI_CHARS = /[\s<>"{}|\\^`]/
 
+export function hasInvalidIriChars(value) {
+  return INVALID_IRI_CHARS.test(value)
+}
+
 // THE rule every reader uses to read a text as an identifier: a Markdown field
 // value, a Markdown link target, a canvas link node, a canvas edge label.
 //

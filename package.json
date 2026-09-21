@@ -6,6 +6,7 @@
   "packageManager": "pnpm@10.32.1",
   "scripts": {
     "test": "pnpm -r test",
+    "test:spec": "node --test spec/typecheck.test.js",
     "publish:packages": "pnpm -r publish --access public",
     "publish:packages:dry-run": "pnpm -r publish --dry-run --force --no-git-checks --access public",
     "trust:github": "pnpm -r --workspace-concurrency=1 exec npm trust github --file npm-publish.yml --repo cristianvasquez/dot-triples --allow-publish --yes",

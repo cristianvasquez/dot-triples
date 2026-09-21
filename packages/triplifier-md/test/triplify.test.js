@@ -35,6 +35,25 @@ function triplesOf(nt) {
 const RDF_TYPE = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type'
 const RDF_VALUE = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#value'
 
+test('predicate mappings reject non-NamedNode terms', () => {
+  const quad = rdf.quad(rdf.namedNode('urn:name:A'), rdf.namedNode('urn:token:key'), rdf.literal('value'))
+  for (const value of [rdf.literal('predicate'), rdf.blankNode(), rdf.defaultGraph(), null, 42]) {
+    assert.throws(() => mapQuad(quad, { mappings: { key: value } }), /Predicate mapping/)
+  }
+  const predicate = rdf.namedNode('https://example.com/key')
+  assert.ok(mapQuad(quad, { mappings: { key: predicate } }).predicate.equals(predicate))
+})
+
+test('mapping handles malformed deferred identifiers without decoding errors', () => {
+  const graph = rdf.namedNode('urn:graph:test')
+  const quad = rdf.quad(rdf.namedNode('urn:name:%'), rdf.namedNode('urn:token:%'), rdf.literal('value'), graph)
+  const mapped = mapQuad(quad)
+  assert.equal(mapped.subject.value, 'urn:name:%25')
+  assert.equal(mapped.predicate.value, 'urn:token:%25')
+  assert.ok(mapped.object.equals(quad.object))
+  assert.ok(mapped.graph.equals(graph))
+})
+
 // The selectors of a reference, in emission order: fragments as
 // [value, syntax] pairs, quotes as strings.
 function selectorsOf(nt, subject) {
@@ -656,6 +675,21 @@ test('mapQuad percent-encodes what N-Quads rejects in an absolute IRI', () => {
     rdf.namedNode('https://example.org/?q=[1]'),
   ))
   assert.equal(mapped.object.value, 'https://example.org/?q=%5B1%5D')
+})
+
+test('a CURIE-like text that no IRI may carry stays deferred; an expansion is made N-Quads safe', async () => {
+  const quads = triplify('schema: name :: Alice\nx :: [[dc:my notes]]\ny :: schema:a[1]\n', { file: 'A.md' })
+    .map((q) => mapQuad(q))
+  const predicates = quads.map((q) => q.predicate.value)
+  assert.ok(predicates.includes('urn:token:schema%3A%20name'))
+  const objects = quads.map((q) => q.object.value)
+  assert.ok(objects.includes('urn:name:dc%3Amy%20notes'))
+  assert.ok(objects.includes('https://schema.org/a%5B1%5D'))
+
+  const output = await serializeQuadStream(Readable.from(quads))
+  for (const [, iri] of output.matchAll(/<([^>]*)>/g)) {
+    assert.doesNotMatch(iri, /[\s<>"{}|\\^`[\]]/, iri)
+  }
 })
 
 test('an unknown CURIE stays a name as an object and a token as a key', () => {

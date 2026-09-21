@@ -1,7 +1,7 @@
 import rdf from 'rdf-ext'
 import { FRONTMATTER_TERMS, nameFromURI, tokenFromURI } from 'canonical-md'
 import { PREFIXES } from 'canonical-md/prefixes'
-import { sanitizeKnownAbsoluteIriForNQuads } from './iri.js'
+import { hasInvalidIriChars, sanitizeAbsoluteIriForNQuads, sanitizeKnownAbsoluteIriForNQuads } from './iri.js'
 
 export { PREFIXES }
 
@@ -12,26 +12,35 @@ export const MAPPINGS = FRONTMATTER_TERMS
 
 // `prefix:local` -> namespace + local, or null. A value whose local part
 // starts with `//` is an IRI with an authority (osg://repo/..., http://...),
-// never a CURIE.
+// never a CURIE. A local part with a character no IRI may carry (whitespace,
+// <, >, ...) is not a CURIE either: `schema: name` stays a deferred name.
 export function expandCurie(curie, prefixes = PREFIXES) {
   const separator = curie.indexOf(':')
   if (separator <= 0) return null
   const prefix = curie.slice(0, separator)
   const suffix = curie.slice(separator + 1)
-  if (suffix.startsWith('//')) return null
+  if (suffix.startsWith('//') || hasInvalidIriChars(suffix)) return null
   const base = prefixes[prefix]
   return base ? `${base}${suffix}` : null
 }
 
-// A mapping value is a term, a CURIE or an absolute IRI.
+// A predicate mapping value is a NamedNode, a CURIE or an absolute IRI.
 function mappedTerm(value, prefixes) {
-  if (typeof value !== 'string') return value
-  return rdf.namedNode(expandCurie(value, prefixes) ?? value)
+  if (typeof value !== 'string') {
+    if (value?.termType !== 'NamedNode' || typeof value.value !== 'string') {
+      throw new TypeError('Predicate mapping must be a NamedNode or an IRI/CURIE string')
+    }
+    return value
+  }
+  const expanded = expandCurie(value, prefixes)
+  return rdf.namedNode(expanded ? sanitizeAbsoluteIriForNQuads(expanded) : value)
 }
 
+// The expansion is percent-encoded where N-Quads rejects it, as a known
+// absolute IRI is: `schema:a[1]` gives https://schema.org/a%5B1%5D.
 function expandedTerm(curie, prefixes) {
   const expanded = expandCurie(curie, prefixes)
-  return expanded ? rdf.namedNode(expanded) : null
+  return expanded ? rdf.namedNode(sanitizeAbsoluteIriForNQuads(expanded)) : null
 }
 
 // The readers write deferred forms only: a key is urn:token:<key>, a

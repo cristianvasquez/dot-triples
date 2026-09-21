@@ -23,15 +23,9 @@ const RDF_TYPE = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type'
 const RDF_VALUE = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#value'
 const RDFS_LABEL = 'http://www.w3.org/2000/01/rdf-schema#label'
 
-// Blank node labels come from a process-global counter, so they are renamed in
-// order of appearance before comparison.
 function lines (quads) {
-  const seen = new Map()
   const term = t => {
-    if (t.termType === 'BlankNode') {
-      if (!seen.has(t.value)) seen.set(t.value, `_:b${seen.size}`)
-      return seen.get(t.value)
-    }
+    assert.notEqual(t.termType, 'BlankNode')
     if (t.termType === 'Literal') {
       const datatype = t.datatype?.value
       const plain = !datatype || datatype === 'http://www.w3.org/2001/XMLSchema#string'
@@ -76,6 +70,22 @@ const fileNode = (id, file, extra = {}) => ({
 test('canProcess accepts .canvas only', () => {
   assert.equal(canProcess('/vault/Board.canvas'), true)
   assert.equal(canProcess('/vault/Board.md'), false)
+})
+
+test('Canvas selector URIs are deterministic, independent of node order, and share equal values', () => {
+  const nodes = [textNode('a', 'same'), textNode('b', 'same')]
+  const quads = run(canvas(nodes))
+  assert.deepEqual(run(canvas(nodes)), quads)
+  assert.deepEqual(lines(run(canvas([...nodes].reverse()))).sort(), lines(quads).sort())
+  for (const q of quads) {
+    for (const term of [q.subject, q.predicate, q.object, q.graph]) {
+      assert.notEqual(term.termType, 'BlankNode')
+    }
+  }
+  const selectorsA = objects(quads, `${NAME}board.canvas%23a`, `${RESOURCE}selector`)
+  const selectorsB = objects(quads, `${NAME}board.canvas%23b`, `${RESOURCE}selector`)
+  assert.notEqual(selectorsA[0].value, selectorsB[0].value)
+  assert.deepEqual(selectorsA.slice(1), selectorsB.slice(1))
 })
 
 test('the canvas is a File keeping its extension in its name', () => {
