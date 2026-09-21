@@ -9,7 +9,7 @@
     "url": "git+https://github.com/cristianvasquez/dot-triples.git",
     "directory": "packages/triplifier-md"
   },
-  "homepage": "https://github.com/cristianvasquez/dot-triples/tree/main/packages/triplifier-md#readme",
+  "homepage": "https://github.com/cristianvasquez/dot-triples/blob/main/spec/manifest.hs",
   "bugs": {
     "url": "https://github.com/cristianvasquez/dot-triples/issues"
   },
@@ -39,6 +39,7 @@
   "exports": {
     ".": "./src/index.js",
     "./inline": "./src/inline.js",
+    "./fences": "./src/fences.js",
     "./serialize": "./src/serialize.js",
     "./iri": "./src/iri.js"
   },

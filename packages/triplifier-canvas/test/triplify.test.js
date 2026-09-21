@@ -334,7 +334,7 @@ test('CRLF fences suppress facts until a valid closing fence', () => {
   assert.equal(objects(quads, anchor, 'urn:token:count')[0].value, '3')
 })
 
-test('the API and CLI preserve selector strings while typing field values', () => {
+test('the API and CLI preserve selector strings and field strings', () => {
   const content = JSON.stringify(canvas([
     textNode('00123', '00123'), textNode('false', 'false'),
     textNode('2026-09-16', '2026-09-16'), textNode('fields', 'count :: 3'),
@@ -344,7 +344,7 @@ test('the API and CLI preserve selector strings while typing field values', () =
     assert.equal(quad.object.datatype.value, 'http://www.w3.org/2001/XMLSchema#string')
   }
   assert.equal(objects(quads, `${NAME}board.canvas%23fields`, 'urn:token:count')[0].datatype.value,
-    'http://www.w3.org/2001/XMLSchema#integer')
+    'http://www.w3.org/2001/XMLSchema#string')
 
   const cli = spawnSync(process.execPath, [fileURLToPath(new URL('../src/cli.js', import.meta.url)), 'board.canvas'],
     { input: content, encoding: 'utf8' })
@@ -353,15 +353,15 @@ test('the API and CLI preserve selector strings while typing field values', () =
     assert.ok(cli.stdout.includes(`<${RDF_VALUE}> "${value}" .`))
     assert.ok(cli.stdout.includes(`<${OA}exact> "${value}" .`))
   }
-  assert.ok(cli.stdout.includes('<urn:token:count> "3"^^<http://www.w3.org/2001/XMLSchema#integer> .'))
+  assert.ok(cli.stdout.includes('<urn:token:count> "3" .'))
 })
 
-test('triplifyToQuads expands CURIEs and types literals', () => {
+test('triplifyToQuads expands CURIEs and preserves literal strings', () => {
   const quads = triplifyToQuads(JSON.stringify(canvas([
     textNode('n1', 'count :: 3\ntype :: schema:Person'),
   ])), { name: 'board.canvas' })
 
-  assert.ok(has(quads, `<${NAME}board.canvas%23n1> <urn:token:count> "3"^^http://www.w3.org/2001/XMLSchema#integer`))
+  assert.ok(has(quads, `<${NAME}board.canvas%23n1> <urn:token:count> "3"`))
   assert.ok(has(quads, `<${NAME}board.canvas%23n1> <urn:token:type> <https://schema.org/Person>`))
 })
 

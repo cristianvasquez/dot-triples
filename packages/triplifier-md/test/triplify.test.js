@@ -454,7 +454,7 @@ test('mapping preserves the input named graph', () => {
   assert.equal(mapped.graph.value, 'urn:my-graph')
 })
 
-test('typed-literals upgrades plain literals in a later pipe', () => {
+test('legacy typeQuad preserves scalar strings', () => {
   const typed = [
     typeQuad(rdf.quad(rdf.namedNode('urn:name:Alice'), rdf.namedNode('urn:token:born'), rdf.literal('2024-03-15'))),
     typeQuad(rdf.quad(rdf.namedNode('urn:name:Alice'), rdf.namedNode('urn:token:count'), rdf.literal('42'))),
@@ -462,9 +462,9 @@ test('typed-literals upgrades plain literals in a later pipe', () => {
     typeQuad(rdf.quad(rdf.namedNode('urn:name:Alice'), rdf.namedNode('urn:token:name'), rdf.literal('Alice')))
   ]
 
-  assert.equal(typed[0].object.datatype.value, 'http://www.w3.org/2001/XMLSchema#date')
-  assert.equal(typed[1].object.datatype.value, 'http://www.w3.org/2001/XMLSchema#integer')
-  assert.equal(typed[2].object.datatype.value, 'http://www.w3.org/2001/XMLSchema#boolean')
+  assert.equal(typed[0].object.datatype.value, 'http://www.w3.org/2001/XMLSchema#string')
+  assert.equal(typed[1].object.datatype.value, 'http://www.w3.org/2001/XMLSchema#string')
+  assert.equal(typed[2].object.datatype.value, 'http://www.w3.org/2001/XMLSchema#string')
   assert.equal(typed[3].object.datatype.value, 'http://www.w3.org/2001/XMLSchema#string')
 })
 
@@ -480,7 +480,7 @@ test('typed-literals leaves rdfs:label values as plain strings', () => {
   assert.equal(typed[2].object.datatype.value, 'http://www.w3.org/2001/XMLSchema#string')
 })
 
-test('mapping upgrades triplify output before typed-literals', async () => {
+test('mapping preserves scalar text through the compatibility transform', async () => {
   const typed = await serializeQuadStream(
     Readable
       .from(['# Alice\ntype :: schema:Person\nborn :: 2024-03-15\n'])
@@ -490,7 +490,7 @@ test('mapping upgrades triplify output before typed-literals', async () => {
   )
 
   assert.match(typed, /<urn:name:Alice> <urn:token:type> <https:\/\/schema\.org\/Person> \./)
-  assert.match(typed, /<urn:name:Alice> <urn:token:born> "2024-03-15"\^\^<http:\/\/www\.w3\.org\/2001\/XMLSchema#date> \./)
+  assert.match(typed, /<urn:name:Alice> <urn:token:born> "2024-03-15" \./)
 })
 
 test('label quads stay plain after curie expansion and typed-literals', async () => {
@@ -538,7 +538,7 @@ test('triplify transform handles chunked input incrementally', async () => {
   assert.deepEqual(selectorsOf(output, 'urn:name:Alice%23Team').fragments[1], ['line=5,6', 'http://tools.ietf.org/rfc/rfc5147'])
 })
 
-test('typed-literals quad transform types literals incrementally', async () => {
+test('legacy typed-literals transform preserves strings incrementally', async () => {
   const quads = []
 
   for await (const quad of Readable
@@ -550,7 +550,7 @@ test('typed-literals quad transform types literals incrementally', async () => {
     quads.push(quad)
   }
 
-  assert.equal(quads[0].object.datatype.value, 'http://www.w3.org/2001/XMLSchema#integer')
+  assert.equal(quads[0].object.datatype.value, 'http://www.w3.org/2001/XMLSchema#string')
   assert.equal(quads[1].object.datatype.value, 'http://www.w3.org/2001/XMLSchema#string')
 })
 
@@ -680,6 +680,6 @@ test('typed-literals keeps the graph of the quad', () => {
   const typed = typeQuad(rdf.quad(
     rdf.namedNode('urn:name:a'), rdf.namedNode('urn:token:n'), rdf.literal('5'), rdf.namedNode('urn:g'),
   ))
-  assert.equal(typed.object.datatype.value, 'http://www.w3.org/2001/XMLSchema#integer')
+  assert.equal(typed.object.datatype.value, 'http://www.w3.org/2001/XMLSchema#string')
   assert.equal(typed.graph.value, 'urn:g')
 })

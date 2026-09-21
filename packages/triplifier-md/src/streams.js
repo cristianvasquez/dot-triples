@@ -71,6 +71,7 @@ export function createMappingQuadTransform(options = {}) {
   })
 }
 
+// Deprecated compatibility stage: passes quads through without inference.
 export function createTypedLiteralsQuadTransform() {
   return new Transform({
     objectMode: true,

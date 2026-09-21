@@ -52,11 +52,6 @@ export function parseScalar(value) {
     return splitList(inner).map(item => parseScalar(item))
   }
 
-  if (trimmed === 'true') return true
-  if (trimmed === 'false') return false
-  if (trimmed === 'null') return null
-  if (/^-?\d+(?:\.\d+)?$/.test(trimmed)) return Number(trimmed)
-
   return stripQuotes(trimmed)
 }
 

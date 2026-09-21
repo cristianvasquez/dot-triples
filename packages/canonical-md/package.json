@@ -9,7 +9,7 @@
     "url": "git+https://github.com/cristianvasquez/dot-triples.git",
     "directory": "packages/canonical-md"
   },
-  "homepage": "https://github.com/cristianvasquez/dot-triples/tree/main/packages/canonical-md#readme",
+  "homepage": "https://github.com/cristianvasquez/dot-triples/blob/main/spec/manifest.hs",
   "bugs": {
     "url": "https://github.com/cristianvasquez/dot-triples/issues"
   },

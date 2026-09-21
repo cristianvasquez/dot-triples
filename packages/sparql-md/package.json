@@ -9,7 +9,7 @@
     "url": "git+https://github.com/cristianvasquez/dot-triples.git",
     "directory": "packages/sparql-md"
   },
-  "homepage": "https://github.com/cristianvasquez/dot-triples/tree/main/packages/sparql-md#readme",
+  "homepage": "https://github.com/cristianvasquez/dot-triples/blob/main/spec/manifest.hs",
   "bugs": {
     "url": "https://github.com/cristianvasquez/dot-triples/issues"
   },

@@ -3,31 +3,97 @@
 {-# LANGUAGE GADTs                  #-}
 {-# LANGUAGE KindSignatures         #-}
 
--- | Type-level manifest of dot-triples.
+-- | dot-triples: package interfaces and behavior.
 --
--- This is a /signature-level/ spec, not compiled code. It mirrors @packages/@
--- so the whole library can be reviewed through Haskell's types, in the same
--- style as rdf-cli's and triplifier's @spec/manifest.hs@. The prose companions
--- are @spec/document-model.md@, @spec/canvas-model.md@ and
--- @spec/canonical-md-spec.md@.
+-- This file is the documentation source for the library. The signatures describe JavaScript interfaces through Haskell types.
+-- The function bodies are stubs. GHC checks this file, but does not check JavaScript conformance.
+-- Tests under packages/*/test check implementation behavior. The known defects below qualify the contract rules.
 --
--- Conventions used to map the JavaScript onto types:
+-- Contract notation:
+--   IO a             filesystem, child process, callback, or stream effects
+--   Either Error a   JavaScript can throw
+--   Maybe a          JavaScript can return null or undefined
+--   Stream a         single-pass Node stream
+--   LAW (tested)     property with a named test
 --
---   * @IO a@            — touches the filesystem, a child process, or stdio.
---   * @Either Error a@  — the JS implementation @throw@s on this path.
---   * @Maybe a@         — the JS returns @null@ / @undefined@ on this path.
---   * @Stream a@        — an async, single-pass sequence (a Node @Readable@ in
---                         object mode). Produced lazily, consumed once.
---   * LAW               — a property the code keeps. "(tested)" names the test
---                         that holds it; without that mark it is not tested.
---
--- The library in one line: a /reader/ turns one syntax (Markdown, JSON Canvas)
--- into quads over DEFERRED identifiers ('Name', 'Token'); ONE mapping step
--- ('mapQuad') resolves what it can against a prefix table and a key mapping,
--- the same step for every syntax; what does not resolve stays deferred, a
--- stable IRI a query can find. No reader decides a vocabulary term.
+-- Readers produce RDF quads with deferred names and tokens plus structural vocabulary terms.
+-- mapQuad applies prefix and predicate mappings. Unresolved names and tokens stay deferred.
+-- Scalar values remain strings. Downstream SPARQL CONSTRUCTs assign domain datatypes and domain classes.
+-- Readers emit structural rdf:type triples for files, notes, references, selectors, and parts.
+-- Readers use DefaultGraph. The caller assigns named graphs.
 
 module DotTriples.Manifest where
+
+--------------------------------------------------------------------------------
+-- Use and maintenance
+--------------------------------------------------------------------------------
+
+-- Packages:
+--   canonical-md         name helpers, vocab, FRONTMATTER_TERMS, PREFIXES
+--   triplifier-md        Markdown API, stream transforms, triplify CLI
+--   triplifier-canvas    Canvas API, stream transform, triplify-canvas CLI
+--   sparql-md            query rewrite, query parse, context helpers
+--
+-- Install and test from the repository root:
+--   pnpm install
+--   pnpm test
+--   ghc -fno-code spec/manifest.hs
+--
+-- Both CLIs read content from stdin. Supply the file path as a positional argument for identity.
+--   triplify note.md < note.md
+--   triplify-canvas Board.canvas < Board.canvas
+-- Local commands:
+--   node packages/triplifier-md/src/cli.js note.md < note.md
+--   node packages/triplifier-canvas/src/cli.js Board.canvas < Board.canvas
+--
+-- JavaScript examples:
+--   import { triplifyToQuads } from 'triplifier-md'
+--   const quads = triplifyToQuads('# Alice\ncount :: 00123', { file: 'Alice.md' })
+--   // count remains "00123" as an xsd:string literal.
+--
+--   import { triplifyToQuads as canvasToQuads } from 'triplifier-canvas'
+--   const quads = canvasToQuads(content, { file: 'boards/Board.canvas' })
+--   // An explicit Canvas name includes its extension: { name: 'Board.canvas' }.
+--
+--   import { rewriteAndParseQuery } from 'sparql-md'
+--   const result = rewriteAndParseQuery('SELECT * WHERE { __THIS__ __knows__ [[Bob]] }', { filePath: '/notes/Alice.md' })
+--   // result.query holds the rewritten text. result.parsed holds the SPARQL AST.
+--
+-- The JavaScript API combines ReadOpts and MapOpts into one options object.
+-- prefixes and mappings replace their default tables. Merge the defaults to extend them.
+-- Raw Markdown reader functions live in src/triplify.js and have no public package export.
+-- Public subpaths: canonical-md/prefixes, triplifier-md/inline, triplifier-md/fences,
+-- triplifier-md/iri, triplifier-md/serialize, and sparql-md/rewrite.
+--
+-- Stream pipeline: reader -> mapping -> serializer. Keep quads inside one Node process and serialize once.
+-- Shell pipes carry serialized bytes. Canvas buffers the complete JSON input before it emits quads.
+-- typeQuad and createTypedLiteralsQuadTransform remain deprecated identity operations for existing callers.
+--
+-- Release workflow (package.json and .github/workflows/npm-publish.yml):
+-- Use Node.js 24, pnpm 10.32.1, and npm 11.15 or later for publishing.
+-- Run npm login, then pnpm trust:github to configure trusted publishing for existing packages.
+-- Publish a new package once before configuring trust: pnpm --filter <package> publish --access public.
+-- From a clean main branch, run pnpm release patch. Use minor or major for other version changes.
+-- The release command tests, updates versions, checks archives, and pushes the commit and tag.
+-- GitHub Actions tests the tag and publishes the packages.
+-- pnpm publish:packages:dry-run checks archives without publishing. It does not check OIDC authentication.
+--
+-- External model shapes:
+--   osg://repo/local:e8f91724f0402986bb4471229a092c12a0fdae49
+--   shapes/document.ttl and shapes/resource.ttl
+-- These shapes define structural constraints. Downstream datatype requirements can differ from this library's string output.
+
+--------------------------------------------------------------------------------
+-- Known defects and limits
+--------------------------------------------------------------------------------
+
+-- SPARQL replacement also affects quoted strings and comments. File context does not prevent this defect.
+-- Prefix lookup includes inherited JavaScript properties. constructor:Thing can produce an invalid expansion.
+-- Unclosed frontmatter recovery uses incorrect line positions and can omit the final code block or quotation.
+-- The YAML subset ignores unsupported keys, including keys with spaces. Nested flow lists do not parse correctly.
+-- Relative Markdown link targets, such as [Bob](Bob.md), produce no reference.
+-- getNameFromPath discards directories. Equal file names in different directories share one deferred name.
+-- Canvas containment permits cycles for equal rectangles. The containment section states the remaining geometric limits.
 
 --------------------------------------------------------------------------------
 -- RDF core (the RDF/JS data model, as provided by rdf-ext)
@@ -69,7 +135,7 @@ type Text     = String
 --                                          an unexpanded CURIE value
 --   urn:token:<encodeURIComponent(token)>  a word: a field key, a [token]
 --
--- Encoding is exact: no case folding, no whitespace normalisation.
+-- Encoding preserves case and whitespace inside the supplied name. Callers trim syntax before they call the helpers.
 
 type Name  = String   -- ^ e.g. "Alice", "Alice#Skills", "Board.canvas", "dprod:DataProduct".
 type Token = String   -- ^ e.g. "lives in", "sh:path".
@@ -92,7 +158,7 @@ splitHeadingName :: Name -> (Name, Maybe String)
 -- "line=9,10". Throws unless 1 <= first <= last.
 lineRange :: Int -> Int -> Either Error String
 
-getNameFromPath :: FilePath -> Name           -- ^ basename, ".md" removed (only .md).
+getNameFromPath :: FilePath -> Name           -- ^ basename, trailing .md removed without case sensitivity.
 getDocName      :: Name -> Either Error Name  -- ^ name ++ ".md"; throws when empty/untrimmed.
 pathToFileUrl   :: FilePath -> Term           -- ^ file:// NamedNode, per-segment encoded.
 fileUrlToPath   :: Term -> Either Error FilePath  -- ^ throws unless file://.
@@ -192,7 +258,7 @@ data ReadOpts = ReadOpts
   , file :: Maybe FilePath
   }
 
--- The three kinds of nodes (spec/document-model.md):
+-- The four kinds of Markdown nodes:
 --   the file     urn:name:<name>.md          document:File; frontmatter; schema:about
 --   the note     urn:name:<name>             resource:Resource; label from the first H1
 --   a heading    urn:name:<name>%23<heading> resource:ResourceReference; source the
@@ -207,14 +273,14 @@ data ReadOpts = ReadOpts
 data Subject = OnFile | OnNote | OnHeading Name
 
 -- | Frontmatter: a YAML subset (scalars, [a, b] lists, "- item" lists).
-data Scalar = SText String | SNumber Double | SBool Bool | SNull | SList [Scalar]
+data Scalar = SText String | SList [Scalar]
 parseScalar      :: String -> Scalar
 parseSimpleYaml  :: Text -> [(String, Scalar)]
 splitFrontmatter :: Text -> ([(String, Scalar)], Text)
 
 -- | One body line, read in this order; the first reading that applies wins:
 data LineReading
-  = Fence          -- ^ ``` opens or closes a code block; lines inside are content only
+  = Fence          -- ^ shared backtick/tilde fence parser; matching marker and sufficient closing length required
   | Blockquote     -- ^ "> ..." lines accumulate into one quotation part
   | Heading Int String  -- ^ #..###### ; the first H1 is the note
   | Field Token String  -- ^ [list marker] [task checkbox] key :: value
@@ -237,6 +303,14 @@ data InlineExtractor = InlineExtractor
   }
 createInlineExtractor :: (Quad -> IO ()) -> WikiContext -> InlineExtractor
 
+-- | Shared fence parser (public export: triplifier-md/fences).
+-- An opening fence has at least three backticks or tildes and at most three leading spaces.
+-- A closing fence uses the same marker and at least the opening length. Only whitespace can follow it.
+-- A backtick fence cannot have backticks in its info string. Canvas and Markdown use this parser.
+data FenceReading = OpenFence String | FenceContent | CloseFence | FenceProse
+data FenceParser = FenceParser { readFenceLine :: String -> IO FenceReading }
+createFenceParser :: IO FenceParser
+
 -- | Line-at-a-time processor; 'triplify' and the stream transform drive the
 -- same one, so both count lines alike.
 data Processor = Processor
@@ -246,7 +320,7 @@ data Processor = Processor
 createTriplifyProcessor :: ReadOpts -> (Quad -> IO ()) -> Either Error Processor
 triplify                :: Text -> ReadOpts -> Either Error [Quad]
 
--- LAW (cross-document identity, spec/document-model.md): [[Alice#Skills]] in
+-- LAW (cross-document identity): [[Alice#Skills]] in
 -- any file and "## Skills" in Alice.md give the same IRI; files triplified
 -- independently, in any order, merge into the same graph.
 
@@ -288,14 +362,12 @@ mapQuad :: MapOpts -> Quad -> Quad
 sanitizeForNQuads :: String -> Maybe Iri
 
 --------------------------------------------------------------------------------
--- Typed literals  (triplifier-md src/typed-literals.js)
+-- Compatibility only  (triplifier-md src/typed-literals.js)
 --------------------------------------------------------------------------------
 
--- | An xsd:string literal with no language gets a datatype from its text:
--- "true"/"false" -> boolean, a finite number -> integer | decimal,
--- YYYY-MM-DD -> date, ISO date-time / YYYY/MM/DD / MM/DD/YYYY -> dateTime.
--- The objects of rdfs:label, rdf:value and oa:exact stay text (full IRIs: this
--- runs after 'mapQuad'). The graph term passes through (tested).
+-- | Deprecated identity function. Readers preserve scalar text, including
+-- numeric, boolean, null and date spellings. Datatypes are assigned downstream
+-- by CONSTRUCTs, never inferred here.
 typeQuad :: Quad -> Quad
 
 --------------------------------------------------------------------------------
@@ -305,18 +377,18 @@ typeQuad :: Quad -> Quad
 canProcessMd :: FilePath -> Bool     -- ^ ends with ".md".
 
 -- | The whole library for one Markdown text, buffered.
---   triplifyToQuads t o = map (typeQuad . mapQuad o) <$> triplify t o
+--   triplifyToQuads t o = map (mapQuad o) <$> triplify t o
 triplifyToQuads :: Text -> ReadOpts -> MapOpts -> Either Error [Quad]
 
 type QuadTransform = Stream Quad -> Stream Quad
 
 createTriplifyQuadTransform      :: ReadOpts -> Stream Text -> Stream Quad  -- ^ the reader, chunked.
 createMappingQuadTransform       :: MapOpts -> QuadTransform                 -- ^ 'mapQuad' as a stage.
-createTypedLiteralsQuadTransform :: QuadTransform                            -- ^ 'typeQuad' as a stage.
+createTypedLiteralsQuadTransform :: QuadTransform                            -- ^ deprecated pass-through.
 serializeNTriplesStream          :: Stream Quad -> Stream Text
 
 -- | bin "triplify": stdin Markdown -> stdout N-Triples, with the DEFAULT tables:
---   reader :> mapping :> typed literals :> N-Triples
+--   reader :> mapping :> N-Triples
 triplifyCli :: FilePath -> IO ()
 
 --------------------------------------------------------------------------------
@@ -389,7 +461,7 @@ triplifyCanvas        :: Text -> ReadOpts -> Either Error [Quad]
 
 canProcessCanvas       :: FilePath -> Bool   -- ^ ends with ".canvas".
 triplifyCanvasToQuads  :: Text -> ReadOpts -> MapOpts -> Either Error [Quad]
--- ^ JS triplifyToQuads: map (typeQuad . mapQuad o) <$> triplifyCanvas t o.
+-- ^ JS triplifyToQuads: map (mapQuad o) <$> triplifyCanvas t o.
 createCanvasQuadTransform :: ReadOpts -> Stream Text -> Stream Quad
 -- ^ buffers the whole file (JSON is not line-oriented); a stream for symmetry only.
 
@@ -453,6 +525,7 @@ parseSimpleYaml = manifestOnly
 splitFrontmatter = manifestOnly
 fieldKeyRejected = manifestOnly
 createInlineExtractor = manifestOnly
+createFenceParser = manifestOnly
 createTriplifyProcessor = manifestOnly
 triplify = manifestOnly
 

@@ -1,4 +1,4 @@
-import { mapQuad, typeQuad } from 'triplifier-md'
+import { mapQuad } from 'triplifier-md'
 import { triplifyCanvas } from './triplify.js'
 
 export { createCanvasProcessor, parseCanvas, triplifyCanvas } from './triplify.js'
@@ -11,5 +11,5 @@ export function canProcess (absolutePath) {
 }
 
 export function triplifyToQuads (content, options = {}) {
-  return triplifyCanvas(content, options).map(quad => typeQuad(mapQuad(quad, options)))
+  return triplifyCanvas(content, options).map(quad => mapQuad(quad, options))
 }

@@ -1,4 +1,5 @@
 import rdf from 'rdf-ext'
+import { createFenceParser } from './fences.js'
 import { FRONTMATTER_TERMS, vocab } from 'canonical-md'
 import { parseSimpleYaml, parseScalar } from './frontmatter.js'
 import { createInlineExtractor, extractPlainText, parseFieldValue } from './inline.js'
@@ -56,6 +57,7 @@ export function createTriplifyProcessor (options = {}) {
   let frontmatterLines = []
   let inFrontmatter = false
   let atDocumentStart = true
+  const fence = createFenceParser()
   let inCodeFence = false
   let codeFenceLanguage = null
   let codeFenceLines = []
@@ -159,26 +161,23 @@ export function createTriplifyProcessor (options = {}) {
   }
 
   function processBodyLine (line) {
-    const trimmedLine = line.trimStart()
-
-    if (trimmedLine.startsWith('```')) {
+    const fenceLine = fence.readLine(line)
+    if (fenceLine.kind === 'open') {
       emitBlockquote()
-      if (inCodeFence) {
-        emitCodeBlock()
-        inCodeFence = false
-        codeFenceLanguage = null
-        codeFenceLines = []
-        return
-      }
-
       inCodeFence = true
       codeFenceStart = lineNumber
-      codeFenceLanguage = trimmedLine.slice(3).trim().split(/\s+/, 1)[0] || null
+      codeFenceLanguage = fenceLine.info.split(/\s+/, 1)[0] || null
       codeFenceLines = []
       return
     }
-
-    if (inCodeFence) {
+    if (fenceLine.kind === 'close') {
+      emitCodeBlock()
+      inCodeFence = false
+      codeFenceLanguage = null
+      codeFenceLines = []
+      return
+    }
+    if (fenceLine.kind === 'content') {
       codeFenceLines.push(line)
       return
     }
