@@ -1,6 +1,6 @@
 {
   "name": "triplifier-canvas",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "type": "module",
   "description": "Convert Obsidian JSON Canvas files to RDF quads and N-Triples",
   "license": "MIT",

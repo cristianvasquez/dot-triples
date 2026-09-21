@@ -1,6 +1,6 @@
 {
   "name": "canonical-md",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Canonical RDF naming helpers for Markdown documents and tokens",
   "type": "module",
   "license": "MIT",
