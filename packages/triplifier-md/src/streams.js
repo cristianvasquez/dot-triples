@@ -1,7 +1,7 @@
 import { Transform } from 'node:stream'
 import { StringDecoder } from 'node:string_decoder'
 import { createTriplifyProcessor } from './triplify.js'
-import { mapQuad, PREFIXES } from './curie-expansion.js'
+import { mapQuad } from './curie-expansion.js'
 import { typeQuad } from './typed-literals.js'
 
 export function createTriplifyQuadTransform(options = {}) {
@@ -56,13 +56,14 @@ export function createTriplifyQuadTransform(options = {}) {
   })
 }
 
-export function createCurieExpansionQuadTransform(options = {}) {
-  const { prefixes = PREFIXES } = options
+// mapQuad as a stream stage: the one mapping step every syntax is piped
+// through. `prefixes` and `mappings` default to PREFIXES and MAPPINGS.
+export function createMappingQuadTransform(options = {}) {
   return new Transform({
     objectMode: true,
     transform(quad, encoding, callback) {
       try {
-        callback(null, mapQuad(quad, prefixes))
+        callback(null, mapQuad(quad, options))
       } catch (error) {
         callback(error)
       }

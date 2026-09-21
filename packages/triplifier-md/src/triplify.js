@@ -29,15 +29,13 @@ import {
 // triplifier-canvas reuses for the text cards of a canvas.
 
 export function createTriplifyProcessor (options = {}) {
-  const { onQuad = () => {}, prefixes, mappings = {} } = options
+  const { onQuad = () => {} } = options
   const localDocumentNode = documentNode(options)
   const localTopConceptNode = topConceptNode(options)
   const noteName = topConceptName(options)
 
   const inline = createInlineExtractor({
     onQuad,
-    prefixes,
-    mappings: options.mappings ?? mappings,
     wikiContext: () => ({ noteName, noteTitle }),
   })
 
@@ -97,8 +95,11 @@ export function createTriplifyProcessor (options = {}) {
 
   function emitFrontmatter (frontmatter) {
     for (const [key, value] of Object.entries(frontmatter)) {
-      const predicate = resolvePredicate(key, { frontmatterTerm: FRONTMATTER_TERMS[key] })
-      const plainObject = predicate.equals(vocab.label) || predicate.equals(vocab.keywords)
+      // The predicate stays urn:token:<key>; mapQuad maps it (title ->
+      // rdfs:label by default). A label or a keyword is text, not a term.
+      const predicate = resolvePredicate(key)
+      const term = FRONTMATTER_TERMS[key]
+      const plainObject = term === vocab.label || term === vocab.keywords
       emitObject(localDocumentNode, predicate, value, { plainObject })
     }
   }

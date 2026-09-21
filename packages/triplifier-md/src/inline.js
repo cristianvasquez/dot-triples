@@ -1,6 +1,5 @@
 import rdf from 'rdf-ext'
 import { lineRange, nameFromURI, nameToURI, splitHeadingName, vocab } from 'canonical-md'
-import { PREFIXES, expandCurie } from './curie-expansion.js'
 import {
   isAbsoluteIri,
   objectTerm,
@@ -67,8 +66,6 @@ const FIELD_KEY_REJECT = /[[\]()/<>"]/
 export function createInlineExtractor(options = {}) {
   const {
     onQuad = () => {},
-    prefixes = PREFIXES,
-    mappings = {},
     wikiContext = () => ({}),
   } = options
 
@@ -77,15 +74,9 @@ export function createInlineExtractor(options = {}) {
 
   const emit = (subject, predicate, object) => onQuad(rdf.quad(subject, predicate, object))
 
-  // A mapped key wins outright; otherwise a CURIE against a known prefix
-  // resolves to that vocabulary term; anything else stays a urn:token:
-  // predicate, deferred until a mapping or prefix names it.
-  function resolvePredicate(key, { frontmatterTerm = null } = {}) {
-    const mapped = mappings?.[key]
-    if (mapped) return rdf.namedNode(mapped)
-    if (frontmatterTerm) return frontmatterTerm
-    const expanded = expandCurie(key, prefixes)
-    if (expanded) return rdf.namedNode(expanded)
+  // A key is always urn:token:<key>. Mappings and CURIE expansion are not
+  // the reader's job: mapQuad resolves the token after every syntax.
+  function resolvePredicate(key) {
     return predicateNode(key)
   }
 

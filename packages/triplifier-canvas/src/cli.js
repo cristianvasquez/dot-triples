@@ -2,7 +2,7 @@
 import { pipeline } from 'node:stream/promises'
 import { stdin, stdout, stderr, argv } from 'node:process'
 import {
-  createCurieExpansionQuadTransform,
+  createMappingQuadTransform,
   createTypedLiteralsQuadTransform,
 } from 'triplifier-md'
 import { serializeNTriplesStream } from 'triplifier-md/serialize'
@@ -14,7 +14,7 @@ try {
 
   const quadStream = stdin
     .pipe(createCanvasQuadTransform({ file }))
-    .pipe(createCurieExpansionQuadTransform())
+    .pipe(createMappingQuadTransform())
     .pipe(createTypedLiteralsQuadTransform())
 
   const outputStream = serializeNTriplesStream(quadStream)

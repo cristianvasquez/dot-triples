@@ -1,5 +1,6 @@
 import rdf from 'rdf-ext'
 import { getDocName, getNameFromPath, nameToURI, tokenToURI } from 'canonical-md'
+import { isKnownAbsoluteIri } from './iri.js'
 
 const CURIE = /^[a-zA-Z][\w-]*:[^\s]+$/
 const ABSOLUTE_IRI = /^[a-zA-Z][a-zA-Z\d+.-]*:[^\s<>"{}|\\^`]*$/
@@ -102,7 +103,11 @@ export function objectTerm(value, context = {}) {
       if (INVALID_IRI_CHARS.test(trimmed)) {
         throw new Error(`Invalid IRI (contains forbidden characters): ${trimmed}`)
       }
-      return rdf.namedNode(trimmed)
+      // A known scheme is an IRI. Anything else (`schema:Person`,
+      // `dprod:DataProduct`) is a name: mapQuad expands it when its prefix
+      // is known, and otherwise it stays urn:name:.
+      if (isKnownAbsoluteIri(trimmed)) return rdf.namedNode(trimmed)
+      return nameToURI(trimmed)
     }
   }
 

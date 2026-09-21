@@ -39,14 +39,14 @@ import {
 const ARROW = 'arrow'
 
 export function createCanvasProcessor (options = {}) {
-  const { onQuad = () => {}, prefixes, mappings = {} } = options
+  const { onQuad = () => {} } = options
 
   const canvasName = resolveCanvasName(options)
   const canvas = canvasNode(canvasName)
 
   // The Markdown inline syntax, shared with triplifier-md: a text card carries
   // the same `key :: value` fields and the same links as a note.
-  const inline = createInlineExtractor({ onQuad, prefixes, mappings })
+  const inline = createInlineExtractor({ onQuad })
   const { emit } = inline
 
   function describeFile (node, anchor) {

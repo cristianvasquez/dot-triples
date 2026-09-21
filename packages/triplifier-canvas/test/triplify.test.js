@@ -214,18 +214,20 @@ test('an edge between two cards states the property between the anchors', () => 
 })
 
 test('an edge label resolves like a field key: mapping, then known prefix, then token', () => {
+  // The reader writes the label as a token; triplifyToQuads maps it.
+  const mapped = (json, options = {}) => triplifyToQuads(json, { name: 'board.canvas', ...options })
   const nodes = [textNode('n1', 'a'), textNode('n2', 'b')]
   const edge = label => canvas(nodes, [{ id: 'e1', fromNode: 'n1', toNode: 'n2', label }])
   const anchors = `<${NAME}board.canvas%23n1> %s <${NAME}board.canvas%23n2>`
   const property = (quads, predicate) => has(quads, anchors.replace('%s', `<${predicate}>`))
 
-  assert.ok(property(run(edge('knows'), { mappings: { knows: 'http://xmlns.com/foaf/0.1/knows' } }),
+  assert.ok(property(mapped(edge('knows'), { mappings: { knows: 'http://xmlns.com/foaf/0.1/knows' } }),
     'http://xmlns.com/foaf/0.1/knows'))
-  assert.ok(property(run(edge('rdfs:seeAlso')), 'http://www.w3.org/2000/01/rdf-schema#seeAlso'))
-  assert.ok(property(run(edge('ex:details'), { prefixes: { ex: 'http://example.org/' } }),
+  assert.ok(property(mapped(edge('rdfs:seeAlso')), 'http://www.w3.org/2000/01/rdf-schema#seeAlso'))
+  assert.ok(property(mapped(edge('ex:details'), { prefixes: { ex: 'http://example.org/' } }),
     'http://example.org/details'))
-  assert.ok(property(run(edge('ex:details')), 'urn:token:ex%3Adetails'))
-  assert.ok(property(run(edge('lives in')), 'urn:token:lives%20in'))
+  assert.ok(property(mapped(edge('ex:details')), 'urn:token:ex%3Adetails'))
+  assert.ok(property(mapped(edge('lives in')), 'urn:token:lives%20in'))
 })
 
 test('an edge label that is an absolute IRI is the predicate, verbatim', () => {

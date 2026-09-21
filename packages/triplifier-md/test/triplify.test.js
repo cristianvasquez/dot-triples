@@ -5,7 +5,7 @@ import { Readable } from 'node:stream'
 import { triplify, internals } from '../src/triplify.js'
 import { mapQuad } from '../src/curie-expansion.js'
 import { typeQuad } from '../src/typed-literals.js'
-import { createTriplifyQuadTransform, createCurieExpansionQuadTransform, createTypedLiteralsQuadTransform } from '../src/streams.js'
+import { createTriplifyQuadTransform, createMappingQuadTransform, createTypedLiteralsQuadTransform } from '../src/streams.js'
 import { serializeNTriplesStream } from '../src/serialize.js'
 
 async function serializeQuadStream(stream) {
@@ -98,27 +98,36 @@ maintainer :: [[Bob]]
   assert.match(nt, /<urn:name:Project> <urn:token:maintainer> <urn:name:Bob> \./)
 })
 
-test('body fields apply option mappings like frontmatter fields', async () => {
-  const quads = triplify(`knows :: [[Bob]]
+test('the reader writes every key as a token; mapQuad maps body and frontmatter keys alike', async () => {
+  const content = `---
+title: Front
+---
+knows :: [[Bob]]
 title :: Example
-`, {
-    file: 'test.md',
-    mappings: {
-      knows: 'foaf:knows',
-      title: 'dcterms:title'
-    }
-  })
+`
+  const read = triplify(content, { file: 'test.md' }).map((q) => q.predicate.value)
+  assert.ok(read.includes('urn:token:knows'))
+  assert.equal(read.filter((p) => p === 'urn:token:title').length, 2)
 
-  const predicates = quads.map((q) => q.predicate.value)
-  assert.ok(predicates.includes('foaf:knows'))
-  assert.ok(predicates.includes('dcterms:title'))
+  const mappings = { knows: 'foaf:knows', title: 'dcterms:title' }
+  const predicates = triplify(content, { file: 'test.md' })
+    .map((q) => mapQuad(q, { mappings }).predicate.value)
+  assert.ok(predicates.includes('http://xmlns.com/foaf/0.1/knows'))
+  assert.equal(predicates.filter((p) => p === 'http://purl.org/dc/terms/title').length, 2)
   assert.ok(!predicates.some((p) => p.startsWith('urn:token:')))
+})
+
+test('without mappings, mapQuad maps the frontmatter terms of the document model', () => {
+  const predicates = triplify('---\ntitle: T\ntags: [a]\n---\n', { file: 'test.md' })
+    .map((q) => mapQuad(q).predicate.value)
+  assert.ok(predicates.includes('http://www.w3.org/2000/01/rdf-schema#label'))
+  assert.ok(predicates.includes('https://schema.org/keywords'))
 })
 
 test('a field key containing a colon is still parsed as a field, not a prose reference', async () => {
   const nt = await serializeQuads(triplify(`# Alice
 rdfs:comment :: Alice is the primary contact.
-`, { file: 'Alice.md' }))
+`, { file: 'Alice.md' }).map((q) => mapQuad(q)))
 
   assert.match(nt, /<urn:name:Alice> <http:\/\/www\.w3\.org\/2000\/01\/rdf-schema#comment> "Alice is the primary contact\." \./)
   assert.doesNotMatch(nt, /dct\/terms\/references/)
@@ -137,7 +146,8 @@ test('options.prefixes replaces the standard prefix table', () => {
 acme:custom :: a
 rdfs:comment :: b
 `
-  const predicates = (options) => triplify(content, { file: 'Alice.md', ...options })
+  const predicates = (options) => triplify(content, { file: 'Alice.md' })
+    .map((q) => mapQuad(q, options))
     .filter((q) => q.subject.value === 'urn:name:Alice')
     .map((q) => q.predicate.value)
 
@@ -293,7 +303,8 @@ See [[Bob]], [sparql], schema:Person, and https://example.com/spec for details.
 
   assert.match(nt, /<urn:name:Alice%23References> <http:\/\/purl\.org\/dc\/terms\/references> <urn:name:Bob> \./)
   assert.match(nt, /<urn:name:Alice%23References> <http:\/\/purl\.org\/dc\/terms\/references> <urn:token:sparql> \./)
-  assert.match(nt, /<urn:name:Alice%23References> <http:\/\/purl\.org\/dc\/terms\/references> <schema:Person> \./)
+  // Deferred until mapQuad: a CURIE-like value is a name, not an IRI.
+  assert.match(nt, /<urn:name:Alice%23References> <http:\/\/purl\.org\/dc\/terms\/references> <urn:name:schema%3APerson> \./)
   assert.match(nt, /<urn:name:Alice%23References> <http:\/\/purl\.org\/dc\/terms\/references> <https:\/\/example\.com\/spec> \./)
   assert.doesNotMatch(nt, /urn:token:_/)
 })
@@ -420,11 +431,11 @@ flag :: \`true\`
   assert.match(nt, /<urn:name:Alice> <urn:token:flag> "true" \./)
 })
 
-test('mapping expands curies in any RDF term position', () => {
+test('mapping expands the deferred forms in any RDF term position', () => {
   const mapped = mapQuad(rdf.quad(
-    rdf.namedNode('schema:Alice'),
-    rdf.namedNode('schema:knows'),
-    rdf.namedNode('schema:Person')
+    rdf.namedNode('urn:name:schema%3AAlice'),
+    rdf.namedNode('urn:token:schema%3Aknows'),
+    rdf.namedNode('urn:name:schema%3APerson')
   ))
 
   assert.equal(mapped.subject.value, 'https://schema.org/Alice')
@@ -474,7 +485,7 @@ test('mapping upgrades triplify output before typed-literals', async () => {
     Readable
       .from(['# Alice\ntype :: schema:Person\nborn :: 2024-03-15\n'])
       .pipe(createTriplifyQuadTransform({ name: 'Alice', file: 'Alice.md' }))
-      .pipe(createCurieExpansionQuadTransform())
+      .pipe(createMappingQuadTransform())
       .pipe(createTypedLiteralsQuadTransform())
   )
 
@@ -487,7 +498,7 @@ test('label quads stay plain after curie expansion and typed-literals', async ()
     Readable
       .from(['# 2025-07-18\n## 1956\nSee [0xd34df00d](https://example.com/osg).\n'])
       .pipe(createTriplifyQuadTransform({ name: 'Alice', file: 'Alice.md' }))
-      .pipe(createCurieExpansionQuadTransform())
+      .pipe(createMappingQuadTransform())
       .pipe(createTypedLiteralsQuadTransform())
   )
 
@@ -543,18 +554,18 @@ test('typed-literals quad transform types literals incrementally', async () => {
   assert.equal(quads[1].object.datatype.value, 'http://www.w3.org/2001/XMLSchema#string')
 })
 
-test('curie expansion quad transform maps quads incrementally', async () => {
+test('mapping quad transform maps quads incrementally', async () => {
   const input = rdf.quad(
-    rdf.namedNode('schema:Alice'),
-    rdf.namedNode('schema:knows'),
-    rdf.namedNode('schema:Person')
+    rdf.namedNode('urn:name:schema%3AAlice'),
+    rdf.namedNode('urn:token:schema%3Aknows'),
+    rdf.namedNode('urn:name:schema%3APerson')
   )
 
   const quads = []
 
   for await (const quad of Readable
     .from([input])
-    .pipe(createCurieExpansionQuadTransform())) {
+    .pipe(createMappingQuadTransform())) {
     quads.push(quad)
   }
 
@@ -569,14 +580,13 @@ test('curie expansion quad transform maps quads incrementally', async () => {
 // parser stays a line scanner; this table is where the syntax is agreed.
 const REFERENCES = 'http://purl.org/dc/terms/references'
 const LABEL = 'http://www.w3.org/2000/01/rdf-schema#label'
-const COMMENT = 'http://www.w3.org/2000/01/rdf-schema#comment'
 
 const LINE_SEMANTICS = [
   // `key :: value` splits on the first `::`. The left side is the token, the
   // right side takes its term from its own shape.
   ['uses :: [sparql]', [['urn:token:uses', '<urn:token:sparql>']]],
   ['uses :: [[Bob]]', [['urn:token:uses', '<urn:name:Bob>']]],
-  ['uses :: schema:Person', [['urn:token:uses', '<schema:Person>']]],
+  ['uses :: schema:Person', [['urn:token:uses', '<urn:name:schema%3APerson>']]],
   ['uses :: 2026-09-18', [['urn:token:uses', '"2026-09-18"']]],
   ['- uses :: [sparql]', [['urn:token:uses', '<urn:token:sparql>']]],
 
@@ -585,7 +595,7 @@ const LINE_SEMANTICS = [
   ['uses ::sparql', [['urn:token:uses', '"sparql"']]],
   ['uses:: sparql', [['urn:token:uses', '"sparql"']]],
   ['lives in::Madrid', [['urn:token:lives%20in', '"Madrid"']]],
-  ['rdfs:comment::Alice is the contact.', [[COMMENT, '"Alice is the contact."']]],
+  ['rdfs:comment::Alice is the contact.', [['urn:token:rdfs%3Acomment', '"Alice is the contact."']]],
 
   // `::` inside a URL is not a separator. The candidate key carries link or
   // URL punctuation, so the line keeps its own reading and the link survives.
@@ -628,4 +638,29 @@ test('a body line states exactly what the syntax says it states', () => {
 
     assert.deepEqual(stated.sort(), expected.slice().sort(), `line: ${line}`)
   }
+})
+
+test('mapQuad leaves an IRI with an authority alone, even when its scheme is a known prefix', () => {
+  const iri = 'osg://repo/github.com/owner/repo'
+  const mapped = mapQuad(
+    rdf.quad(rdf.namedNode('urn:name:A'), rdf.namedNode('urn:token:in'), rdf.namedNode(iri)),
+    { prefixes: { osg: 'urn:osg:' } },
+  )
+  assert.equal(mapped.object.value, iri)
+})
+
+test('mapQuad percent-encodes what N-Quads rejects in an absolute IRI', () => {
+  const mapped = mapQuad(rdf.quad(
+    rdf.namedNode('urn:name:A'),
+    rdf.namedNode('urn:token:see'),
+    rdf.namedNode('https://example.org/?q=[1]'),
+  ))
+  assert.equal(mapped.object.value, 'https://example.org/?q=%5B1%5D')
+})
+
+test('an unknown CURIE stays a name as an object and a token as a key', () => {
+  const quads = triplify('# A\nacme:k :: acme:v\n', { file: 'A.md' }).map((q) => mapQuad(q))
+  const field = quads.find((q) => q.subject.value === 'urn:name:A' && q.predicate.value.startsWith('urn:token:'))
+  assert.equal(field.predicate.value, 'urn:token:acme%3Ak')
+  assert.equal(field.object.value, 'urn:name:acme%3Av')
 })
