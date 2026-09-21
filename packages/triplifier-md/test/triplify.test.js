@@ -664,3 +664,14 @@ test('an unknown CURIE stays a name as an object and a token as a key', () => {
   assert.equal(field.predicate.value, 'urn:token:acme%3Ak')
   assert.equal(field.object.value, 'urn:name:acme%3Av')
 })
+
+test('a Markdown link target follows the field-value rule: an unknown scheme is a name', () => {
+  const objects = triplify('# N\nsee [a](dprod:DataProduct) and [b](https://example.org/x)\n', { file: 'N.md' })
+    .filter((q) => q.predicate.value === 'http://purl.org/dc/terms/references')
+    .map((q) => q.object.value)
+  assert.deepEqual(objects.sort(), ['https://example.org/x', 'urn:name:dprod%3ADataProduct'])
+
+  const mapped = triplify('# N\nsee [a](dprod:DataProduct)\n', { file: 'N.md' })
+    .map((q) => mapQuad(q, { prefixes: { dprod: 'https://www.omg.org/spec/DPROD/dprod/' } }))
+  assert.ok(mapped.some((q) => q.object.value === 'https://www.omg.org/spec/DPROD/dprod/DataProduct'))
+})

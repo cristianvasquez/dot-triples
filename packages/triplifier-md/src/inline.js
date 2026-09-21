@@ -5,7 +5,6 @@ import {
   objectTerm,
   plainLiteralTerm,
   predicateNode,
-  urlNode,
 } from './terms.js'
 
 // The inline layer of the Markdown syntax: field lines, prose references,
@@ -168,7 +167,9 @@ export function createInlineExtractor(options = {}) {
       if (!label || !uri || !isAbsoluteIri(uri)) continue
 
       matched = true
-      const target = urlNode(uri)
+      // The same rule as a field value: a known scheme is an IRI, anything
+      // else (`dprod:DataProduct`) a urn:name: that mapQuad may expand.
+      const target = objectTerm(uri)
       emit(subject, vocab.references, target)
       occupiedRanges.push([match.index, match.index + match[0].length])
 
