@@ -1,4 +1,5 @@
 ---
+uuid: 912ff0ce-471f-402f-8f1a-b6d9f92c0f37
 repo-group: rdf
 tags: [spec/rdf]
 ---
@@ -42,7 +43,7 @@ A node is a rectangle. What it points at is the entity, when there is one.
 |---|---|---|
 | `file` | the note: `bob/Bob.md` gives `urn:name:Bob`, `houses/img.png` gives `urn:name:img.png` | `dct:references` |
 | `file` with `subpath` | the heading: `#Bio` gives `urn:name:Bob%23Bio`, described as a Markdown link describes it | `dct:references` |
-| `link` | its URL | `dct:references` |
+| `link` | its URL when the scheme is known, else `urn:name:<url>`; nothing when the URL has characters no IRI may carry | `dct:references` |
 | `text` | nothing; the anchor stands for it | — |
 | `group` | nothing; the anchor stands for it | — |
 
@@ -64,9 +65,9 @@ The label resolves exactly as a Markdown field key does, so the same drawing mea
 
 | Label | Predicate |
 |---|---|
-| a key in `options.mappings` | the mapped IRI |
-| a CURIE against a known prefix, `rdfs:seeAlso` | `http://www.w3.org/2000/01/rdf-schema#seeAlso` |
-| an absolute IRI, `https://schema.org/knows` | the IRI |
+| an IRI with a known scheme, `https://schema.org/knows` | the IRI |
+| a key in the mappings | the mapped IRI, by the mapping step |
+| a CURIE against a known prefix, `rdfs:seeAlso` | `http://www.w3.org/2000/01/rdf-schema#seeAlso`, by the mapping step |
 | anything else, `lives in` | `urn:token:lives%20in` |
 | no label | `dct:references` |
 

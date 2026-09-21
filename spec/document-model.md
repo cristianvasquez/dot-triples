@@ -1,4 +1,5 @@
 ---
+uuid: 8ed874e9-c805-4cf4-ab47-bec5ee3f881d
 repo-group: rdf
 tags: [spec/rdf]
 ---
@@ -36,7 +37,7 @@ A heading name is `<note>#<heading>`. `splitHeadingName` splits it at the first 
 <urn:name:Alice.md>  schema:about     <urn:name:Alice%23Skills>
 ```
 
-Frontmatter keys the model names go to standard predicates; every other key is `urn:token:<key>`:
+The reader writes every frontmatter key as `urn:token:<key>`. The mapping step (see [The mapping step](#the-mapping-step)) then changes the keys the model names to standard predicates:
 
 | Key | Predicate |
 |---|---|
@@ -45,7 +46,7 @@ Frontmatter keys the model names go to standard predicates; every other key is `
 | `created` | `dct:created` |
 | `modified` | `dct:modified` |
 
-`options.mappings` overrides these and applies to body fields too.
+These are the default mappings of `mapQuad`. They apply to body fields too: `title :: X` also gives `rdfs:label`. `options.mappings` replaces them; a caller that wants to keep them spreads `MAPPINGS` in.
 
 Body fields before the first `#` heading attach to the file, since no note exists yet.
 
@@ -101,8 +102,8 @@ All inline field keys go through `tokenToURI`. No `rdf:type` from fields; type a
 | `[[Name#Section]]` | `urn:name:Name%23Section`, described as above |
 | `[[Name\|Alias]]`, `![[img.png\|411]]` | the alias or size is dropped |
 | `[value]` | `urn:token:value` |
-| CURIE `schema:Person` | `schema:Person`, expanded later |
-| Absolute IRI | the IRI |
+| CURIE `schema:Person` | `urn:name:schema%3APerson`; the mapping step expands it when the prefix is known |
+| IRI with a known scheme | the IRI |
 | plain text | a literal, typed later |
 
 ## References in prose
@@ -117,7 +118,7 @@ See [the spec](https://example.com/spec), [[Bob]], [sparql], and schema:Person.
 <urn:name:Alice%23Skills>  dct:references  <https://example.com/spec>
 <urn:name:Alice%23Skills>  dct:references  <urn:name:Bob>
 <urn:name:Alice%23Skills>  dct:references  <urn:token:sparql>
-<urn:name:Alice%23Skills>  dct:references  <schema:Person>
+<urn:name:Alice%23Skills>  dct:references  <urn:name:schema%3APerson>
 <https://example.com/spec>  rdfs:label  "the spec"
 ```
 
@@ -133,15 +134,23 @@ A fenced code block or a contiguous blockquote is a part of the note, attached t
 ```js
 const x = 1
 ```
+
 ```
 
 ```
-<urn:name:Alice%23Skills>  schema:hasPart  _:b
-_:b  rdf:type  resource:ResourceReference, schema:SoftwareSourceCode
-_:b  resource:source  <urn:name:Alice>
-_:b  resource:selector  [ a oa:FragmentSelector ; rdf:value "line=4,6" ; dct:conformsTo <http://tools.ietf.org/rfc/rfc5147> ]
-_:b  resource:selector  [ a oa:TextQuoteSelector ; oa:exact "const x = 1" ]
-_:b  schema:programmingLanguage  "js"
+
+<urn:name:Alice%23Skills> schema:hasPart _:b
+
+_:b rdf:type resource:ResourceReference, schema:SoftwareSourceCode
+
+_:b resource:source <urn:name:Alice>
+
+_:b resource:selector [ a oa:FragmentSelector ; rdf:value "line=4,6" ; dct:conformsTo http://tools.ietf.org/rfc/rfc5147 ]
+
+_:b resource:selector [ a oa:TextQuoteSelector ; oa:exact "const x = 1" ]
+
+_:b schema:programmingLanguage "js"
+
 ```
 
 The line range covers the fence lines; the quote is the content between them. A blockquote is `schema:Quotation` with no language. Neither parses fields or references.
@@ -154,6 +163,21 @@ The line range covers the fence lines; the quote is the content between them. A 
 - `urn:code-block:<lang>` and `urn:blockquote`: replaced by parts.
 - `UNTYPED_TOKEN`: `tokenToURI` throws on an empty token, as `nameToURI` does.
 
+## The mapping step
+
+The reader resolves nothing. It writes deferred identifiers only: a key is `urn:token:<key>`, and a CURIE-like value is `urn:name:<value>`. After the reader, `mapQuad` in `triplifier-md` resolves them. It is the same step for Markdown and for JSON Canvas.
+
+| Term | Position | Result |
+|---|---|---|
+| `urn:token:<key>` | predicate | `mappings[key]`; else `<key>` expanded as a CURIE; else unchanged |
+| `urn:name:<curie>` | any | the CURIE expanded; else unchanged |
+| IRI with a known scheme | any | percent-encoded where N-Quads rejects it |
+| anything else | any | unchanged; a raw NamedNode is not parsed |
+
+`prefixes` defaults to `canonical-md/prefixes` and `mappings` to `MAPPINGS` (the frontmatter terms). A caller that gives either one replaces the default. A CURIE whose prefix is not known stays deferred: `urn:name:acme%3AThing`, a stable IRI that a query can find.
+
+The known schemes are http, https, file, urn, mailto, tel, obsidian, osg, pkg and app. `knownIri` and `iriOrName` in `triplifier-md/iri` apply this one rule for every reader. A CURIE is never expanded when `//` follows the colon, so `osg://repo/...` is never changed.
+
 ## What is deferred
 
-- SPARQL CONSTRUCTs for domain `rdf:type`, the frontmatter `uri:` key, and CURIE expansion of `urn:token:` predicates.
+- SPARQL CONSTRUCTs for domain `rdf:type` and the frontmatter `uri:` key.
