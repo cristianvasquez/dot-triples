@@ -1,4 +1,3 @@
-import rdf from 'rdf-ext'
 import { getNameFromPath, nameToURI } from 'canonical-md'
 
 // Naming for a JSON Canvas file.
@@ -13,8 +12,6 @@ import { getNameFromPath, nameToURI } from 'canonical-md'
 // same `<resource>#<fragment>` shape a heading reference uses.
 
 const CANVAS_EXTENSION = /\.canvas$/i
-const SCHEME_WITH_AUTHORITY = /^[a-zA-Z][a-zA-Z\d+.-]*:\/\//
-const INVALID_IRI_CHARS = /[\s<>"{}|\\^`]/
 
 export function canvasNameFromPath (filePath) {
   return String(filePath).split(/[\\/]/).pop() ?? ''
@@ -26,7 +23,7 @@ export function resolveCanvasName (options = {}) {
   const explicitName = String(options.name ?? '').trim()
   if (explicitName) return explicitName
 
-  const file = String(options.file ?? options.sourceId ?? '').trim()
+  const file = String(options.file ?? '').trim()
   if (!file) {
     throw new Error('triplifyCanvas requires a name or file')
   }
@@ -58,22 +55,6 @@ export function fileTargetName (file, subpath) {
 
   const fragment = String(subpath ?? '').replace(/^#/, '').trim()
   return fragment ? `${name}#${fragment}` : name
-}
-
-export function urlNode (value) {
-  const iri = String(value).trim()
-  if (!iri || INVALID_IRI_CHARS.test(iri)) return null
-  return rdf.namedNode(iri)
-}
-
-// An edge label that is already an absolute IRI is the predicate, verbatim.
-// Anything else is `urn:token:<label>`, as a Markdown field key is, and
-// triplifier-md's mapQuad resolves it: a mapping first, then a CURIE against
-// a known prefix.
-export function isAbsolutePredicateIri (label) {
-  const trimmed = String(label).trim()
-  if (INVALID_IRI_CHARS.test(trimmed)) return false
-  return SCHEME_WITH_AUTHORITY.test(trimmed) || trimmed.startsWith('urn:')
 }
 
 // A W3C Media Fragments rectangle, in canvas coordinates. Canvas coordinates

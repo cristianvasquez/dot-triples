@@ -1,16 +1,15 @@
 import rdf from 'rdf-ext'
 import { getDocName, getNameFromPath, nameToURI, tokenToURI } from 'canonical-md'
-import { isKnownAbsoluteIri } from './iri.js'
+import { iriOrName } from './iri.js'
 
 const CURIE = /^[a-zA-Z][\w-]*:[^\s]+$/
 const ABSOLUTE_IRI = /^[a-zA-Z][a-zA-Z\d+.-]*:[^\s<>"{}|\\^`]*$/
-const INVALID_IRI_CHARS = /[\s<>"{}|\\^`]/
 
 export function resolveName(options = {}) {
   const explicitName = String(options.name ?? '').trim()
   if (explicitName) return explicitName
 
-  const file = String(options.file ?? options.sourceId ?? '').trim()
+  const file = String(options.file ?? '').trim()
   if (!file) {
     throw new Error('triplify requires a name or file')
   }
@@ -100,26 +99,16 @@ export function objectTerm(value, context = {}) {
     }
 
     if (CURIE.test(trimmed) || ABSOLUTE_IRI.test(trimmed)) {
-      if (INVALID_IRI_CHARS.test(trimmed)) {
-        throw new Error(`Invalid IRI (contains forbidden characters): ${trimmed}`)
-      }
-      // A known scheme is an IRI. Anything else (`schema:Person`,
-      // `dprod:DataProduct`) is a name: mapQuad expands it when its prefix
-      // is known, and otherwise it stays urn:name:.
-      if (isKnownAbsoluteIri(trimmed)) return rdf.namedNode(trimmed)
-      return nameToURI(trimmed)
+      // The one IRI rule (./iri.js): a known scheme is an IRI; anything else
+      // (`schema:Person`, `dprod:DataProduct`) is a name that mapQuad expands
+      // when its prefix is known.
+      const term = iriOrName(trimmed)
+      if (!term) throw new Error(`Invalid IRI (contains forbidden characters): ${trimmed}`)
+      return term
     }
   }
 
   return rdf.literal(String(value))
-}
-
-export function urlNode(value) {
-  const iri = String(value).trim()
-  if (INVALID_IRI_CHARS.test(iri)) {
-    throw new Error(`Invalid IRI (contains forbidden characters): ${iri}`)
-  }
-  return rdf.namedNode(iri)
 }
 
 export function isAbsoluteIri(value) {

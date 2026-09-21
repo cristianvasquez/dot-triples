@@ -1,16 +1,15 @@
 import rdf from 'rdf-ext'
 import { nameToURI, vocab } from 'canonical-md'
 import { createInlineExtractor } from 'triplifier-md/inline'
+import { iriOrName, knownIri } from 'triplifier-md/iri'
 import { containment } from './containment.js'
 import {
   anchorNode,
   canvasLabel,
   canvasNode,
   fileTargetName,
-  isAbsolutePredicateIri,
   mediaFragment,
   resolveCanvasName,
-  urlNode,
 } from './terms.js'
 
 // A JSON Canvas file under the document model of @osg/model:
@@ -62,7 +61,9 @@ export function createCanvasProcessor (options = {}) {
   }
 
   function describeLink (node, anchor) {
-    const target = urlNode(node.url)
+    // The one IRI rule: a known scheme is an IRI, anything else a name. A URL
+    // with characters no IRI may carry points at nothing.
+    const target = iriOrName(node.url)
     if (!target) return null
 
     emit(anchor, vocab.references, target)
@@ -116,15 +117,14 @@ export function createCanvasProcessor (options = {}) {
     }
   }
 
-  // A label that is already an absolute IRI is the predicate. Anything else
-  // is urn:token:<label>, which mapQuad resolves as it resolves a Markdown
-  // field key. Whitespace is collapsed so that a label wrapped
+  // A label that is an IRI under the one IRI rule (a known scheme) is the
+  // predicate. Anything else is urn:token:<label>, which mapQuad resolves as it
+  // resolves a Markdown field key. Whitespace is collapsed so that a label wrapped
   // over two lines in the canvas gives one predicate.
   function edgePredicate (label) {
     const text = String(label ?? '').trim().replace(/\s+/g, ' ')
     if (!text) return vocab.references
-    if (isAbsolutePredicateIri(text)) return rdf.namedNode(text)
-    return inline.resolvePredicate(text)
+    return knownIri(text) ?? inline.resolvePredicate(text)
   }
 
   // Which way the property runs, from the arrowheads. JSON Canvas defaults are

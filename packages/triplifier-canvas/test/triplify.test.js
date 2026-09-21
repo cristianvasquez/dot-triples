@@ -437,3 +437,18 @@ test('the quad transform reports malformed JSON', async () => {
     for await (const quad of transform) assert.fail(`Unexpected quad: ${quad}`)
   }, SyntaxError)
 })
+
+test('an edge label and a link node follow the one IRI rule of triplifier-md', () => {
+  const nodes = [textNode('n1', 'a'), textNode('n2', 'b')]
+  const edge = label => canvas(nodes, [{ id: 'e1', fromNode: 'n1', toNode: 'n2', label }])
+  const predicates = json => run(json).map(q => q.predicate.value)
+
+  assert.ok(predicates(edge('mailto:a@b.org')).includes('mailto:a@b.org'), 'a known scheme is an IRI')
+  assert.ok(predicates(edge('ftp://x.org/f')).includes('urn:token:ftp%3A%2F%2Fx.org%2Ff'), 'an unknown scheme is a token')
+
+  const link = url => run(canvas([{ id: 'l', type: 'link', url, x: 0, y: 0, width: 1, height: 1 }], []))
+    .filter(q => q.predicate.value === `${DCT}references`).map(q => q.object.value)
+  assert.deepEqual(link('https://example.org/x'), ['https://example.org/x'])
+  assert.deepEqual(link('ftp://x.org/f'), [`${NAME}ftp%3A%2F%2Fx.org%2Ff`])
+  assert.deepEqual(link('https://example.org/a b'), [], 'a URL no IRI may carry points at nothing')
+})

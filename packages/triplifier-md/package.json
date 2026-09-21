@@ -39,7 +39,8 @@
   "exports": {
     ".": "./src/index.js",
     "./inline": "./src/inline.js",
-    "./serialize": "./src/serialize.js"
+    "./serialize": "./src/serialize.js",
+    "./iri": "./src/iri.js"
   },
   "dependencies": {
     "@rdfjs/serializer-ntriples": "^2.0.1",

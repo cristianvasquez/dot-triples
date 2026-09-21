@@ -1,3 +1,6 @@
+import rdf from 'rdf-ext'
+import { nameToURI } from 'canonical-md'
+
 const KNOWN_ABSOLUTE_IRI_PREFIXES = [
   'http://',
   'https://',
@@ -31,6 +34,30 @@ const utf8Encoder = new TextEncoder()
 export function isKnownAbsoluteIri(value) {
   const lowerValue = value.toLowerCase()
   return KNOWN_ABSOLUTE_IRI_PREFIXES.some((prefix) => lowerValue.startsWith(prefix))
+}
+
+// Characters no IRI may carry in N-Quads, not even percent-encoded later.
+const INVALID_IRI_CHARS = /[\s<>"{}|\\^`]/
+
+// THE rule every reader uses to read a text as an identifier: a Markdown field
+// value, a Markdown link target, a canvas link node, a canvas edge label.
+//
+//   knownIri   the text as an IRI when its scheme is known, else null
+//   iriOrName  that IRI, else urn:name:<text>, which mapQuad expands when the
+//              text is a CURIE with a known prefix
+//
+// Both return null when the text is empty or has characters no IRI may carry;
+// the caller decides whether that is an error.
+export function knownIri(value) {
+  const text = String(value ?? '').trim()
+  if (!text || INVALID_IRI_CHARS.test(text) || !isKnownAbsoluteIri(text)) return null
+  return rdf.namedNode(text)
+}
+
+export function iriOrName(value) {
+  const text = String(value ?? '').trim()
+  if (!text || INVALID_IRI_CHARS.test(text)) return null
+  return knownIri(text) ?? nameToURI(text)
 }
 
 function isControlCodePoint(codePoint) {
