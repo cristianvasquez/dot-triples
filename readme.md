@@ -9,10 +9,83 @@ repo-group: rdf
 
 # dot-triples
 
-See [spec/manifest.hs](spec/manifest.hs) for interfaces, behavior, usage, and known defects.
+dot-triples reads Markdown notes and JSON Canvas boards and writes RDF. The output follows one document model, so notes and canvases that refer to the same thing give the same IRI. You can read files one at a time, in any order, and merge the results into one graph.
 
-Run `pnpm test` for JavaScript behavior and `pnpm test:spec` for Haskell type checks (requires GHC). The latter checks valid compositions and rejects invalid ones, including literal predicates and names used as tokens. It does not check JavaScript against the Haskell signatures.
+For interfaces, behavior, usage, and known defects, see [spec/manifest.hs](spec/manifest.hs).
 
-`canonical-md` exports `parseName` and `parseToken`. Both return the input string after checking that it is non-empty, pre-trimmed, and well-formed Unicode. Naming helpers apply the same checks; they reject non-string values instead of coercing them. `tokenToLiteral` also rejects empty tokens. Reverse URI helpers return `null` for malformed encoding or invalid decoded identifiers. Predicate mappings reject RDF terms other than `NamedNode`.
+## The model
 
-Markdown and Canvas readers mint no blank nodes. Selectors use `urn:selector:fragment:<syntax>:<value>` or `urn:selector:quote:<text>`. Markdown code blocks and blockquotes use `urn:reference:<source>:<syntax>:<value>`, with the note URI as source and an RFC 5147 line range as value. Each component is separately percent-encoded. Equal selectors share a URI; equal line ranges in different notes identify different parts. Moving a part changes its URI. Quote selector URIs contain the full encoded text, so their length grows with the text.
+The model has four kinds of nodes:
+
+| Node | IRI | Type |
+|---|---|---|
+| File | `urn:name:Alice.md` | `document:File` |
+| Note | `urn:name:Alice` | `resource:Resource` |
+| Heading | `urn:name:Alice#Skills` | `resource:ResourceReference` |
+| Part (code block, blockquote) | `urn:reference:…` | `schema:SoftwareSourceCode` or `schema:Quotation` |
+
+The file is `schema:about` the note and its headings. A heading has the note as `resource:source`. A heading or part has selectors that locate it in the text: an Obsidian link fragment, an RFC 5147 line range, and a text quote (Web Annotation `oa:` selectors).
+
+A canvas is one file node, `urn:name:Board.canvas`. Each canvas node is an anchor, `urn:name:Board.canvas#<id>`, with a JSON Canvas id selector and a media fragment (`xywh=`). An anchor refers to what the canvas node shows: a note, a file, or a URL. An edge between two canvas nodes is a property between the things they show. A group contains the nodes inside its rectangle (`dct:hasPart`).
+
+The structural terms come from the `document` and `resource` shapes of the external model (`osg://repo/local:e8f91724f0402986bb4471229a092c12a0fdae49`).
+
+## Names and tokens
+
+The reader does not decide what a word means. It writes two kinds of deferred identifiers:
+
+- `urn:name:<text>` for a thing: a note, a heading, a file, a CURIE that is not resolved.
+- `urn:token:<text>` for a word: a field key, a `[token]`.
+
+`[[Alice#Skills]]` in any note and `## Skills` in `Alice.md` give the same IRI. This is how independent files join.
+
+A mapping step then resolves what it can. Known prefixes expand CURIEs. A small table maps `title` and `tags` to `rdfs:label` and `schema:keywords`. Names and tokens that the mapping step does not resolve stay deferred. SPARQL CONSTRUCTs downstream give them classes and datatypes.
+
+Values stay strings. The reader does not guess that `00123` is a number.
+
+## Example
+
+`Alice.md`:
+
+````markdown
+---
+tags: [person]
+---
+# Alice
+knows :: [[Bob]]
+schema:jobTitle :: Engineer
+
+## Skills
+See [[Carol#Work]] and [friend].
+````
+
+Result (selectors removed):
+
+```turtle
+<urn:name:Alice.md> a document:File ;
+  schema:about <urn:name:Alice>, <urn:name:Alice%23Skills> ;
+  schema:keywords "person" .
+
+<urn:name:Alice> a resource:Resource ;
+  rdfs:label "Alice" ;
+  <urn:token:knows> <urn:name:Bob> ;
+  schema:jobTitle "Engineer" .
+
+<urn:name:Alice%23Skills> a resource:ResourceReference ;
+  rdfs:label "Skills" ;
+  resource:source <urn:name:Alice> ;
+  dct:references <urn:name:Carol%23Work>, <urn:token:friend> .
+```
+
+`knows` has no mapping, so it stays a token. `schema:jobTitle` expands because `schema` is a known prefix.
+
+## Querying
+
+`sparql-md` lets you write queries with the same names: `[[Bob]]`, `__knows__`, and `__THIS__` for the current note. It rewrites them to the IRIs above.
+
+## Packages
+
+- `canonical-md`: names, tokens, vocabulary, prefixes.
+- `triplifier-md`: Markdown reader and `triplify` CLI.
+- `triplifier-canvas`: Canvas reader and `triplify-canvas` CLI.
+- `sparql-md`: query rewrite.
