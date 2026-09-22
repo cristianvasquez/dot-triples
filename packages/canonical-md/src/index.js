@@ -45,8 +45,6 @@ export const vocab = Object.freeze({
   // schema:hasPart, which the document domain reserves for a code block or a
   // quotation.
   dctHasPart: ns.dct.hasPart,
-  created: ns.dct.created,
-  modified: ns.dct.modified,
   conformsTo: ns.dct.conformsTo,
   FragmentSelector: ns.oa.FragmentSelector,
   TextQuoteSelector: ns.oa.TextQuoteSelector,
@@ -64,8 +62,6 @@ export const vocab = Object.freeze({
 export const FRONTMATTER_TERMS = Object.freeze({
   title: vocab.label,
   tags: vocab.keywords,
-  created: vocab.created,
-  modified: vocab.modified,
 })
 
 function parseIdentifier(value, kind) {
