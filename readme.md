@@ -28,7 +28,7 @@ The file is `schema:about` the note and its headings. A heading has the note as 
 
 A canvas is one file node, `urn:name:Board.canvas`. Each canvas node is an anchor, `urn:name:Board.canvas#<id>`, with a JSON Canvas id selector and a media fragment (`xywh=`). An anchor refers to what the canvas node shows: a note, a file, or a URL. An edge between two canvas nodes is a property between the things they show. A group contains the nodes inside its rectangle (`dct:hasPart`).
 
-The structural terms come from the `document` and `resource` shapes of the external model (`osg://repo/local:e8f91724f0402986bb4471229a092c12a0fdae49`).
+The structural terms come from the `document` and `resource` shapes of the external model (`osg://repo/192.168.68.58/OS/model`).
 
 ## Names and tokens
 
