@@ -16,13 +16,36 @@ import { documentName, isAbsoluteIri, objectTerm, plainLiteralTerm, predicateNod
 // A section is named by its position, not by its heading text, so two
 // sections with the same heading stay two records. A node has its own text as
 // rdf:value: the lines up to the next heading, without the field lines, and
-// without the text of its subsections. No selectors, no quotes.
+// without the text of its subsections. A date value is typed (dateTerm).
+// No selectors, no quotes.
 
 const isPartOf = rdf.namedNode('http://purl.org/dc/terms/isPartOf')
 const position = rdf.namedNode('https://schema.org/position')
 
 const HEADING = /^(#{1,6})\s+(.*?)\s*$/
 const MARKDOWN_LINK = /^\[([^\]]+)\]\(([^)\s]+)\)$/
+const DATE = /^(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}:\d{2})(:\d{2})?)?$/
+const xsd = local => rdf.namedNode(`http://www.w3.org/2001/XMLSchema#${local}`)
+
+// `2026-02-13` is an xsd:date; `2026-02-13 22:47` and `2026-02-13T22:47:05`
+// are an xsd:dateTime, without a time zone. Anything else, and an impossible
+// date such as 2026-02-30, stays a plain literal.
+export function dateTerm (value) {
+  const match = String(value).trim().match(DATE)
+  if (!match) return null
+  const [, day, time, seconds = ':00'] = match
+  const lexical = time ? `${day}T${time}${seconds}` : day
+  const parsed = new Date(`${time ? lexical : `${day}T00:00:00`}Z`)
+  if (Number.isNaN(parsed.getTime()) || !parsed.toISOString().startsWith(lexical)) return null
+  return rdf.literal(lexical, xsd(time ? 'dateTime' : 'date'))
+}
+
+// A field or frontmatter value: a term by the triplifier-md rules, and a
+// plain literal that is a date gets its datatype.
+function valueTerm (value) {
+  const term = objectTerm(value)
+  return (term.termType === 'Literal' && dateTerm(term.value)) || term
+}
 
 export function triplify (content, options = {}) {
   const quads = []
@@ -38,7 +61,7 @@ export function triplify (content, options = {}) {
     const term = FRONTMATTER_TERMS[key]
     const plain = term === vocab.label || term === vocab.keywords
     for (const item of [value].flat()) {
-      emit(fileNode, predicateNode(key), plain ? plainLiteralTerm(item) : objectTerm(item))
+      emit(fileNode, predicateNode(key), plain ? plainLiteralTerm(item) : valueTerm(item))
     }
   }
 
@@ -55,7 +78,7 @@ export function triplify (content, options = {}) {
       }
       return
     }
-    emit(subject, predicateNode(key), objectTerm(value))
+    emit(subject, predicateNode(key), valueTerm(value))
   }
 
   const fence = createFenceParser()
@@ -86,7 +109,7 @@ export function triplify (content, options = {}) {
       const node = rdf.namedNode(`${fileNode.value}#s${++count}`)
       emit(node, vocab.label, rdf.literal(extractPlainText(heading[2])))
       emit(node, isPartOf, parent)
-      emit(node, position, rdf.literal(String(count), rdf.namedNode('http://www.w3.org/2001/XMLSchema#integer')))
+      emit(node, position, rdf.literal(String(count), xsd('integer')))
       stack.push({ depth, node })
       current = { node, lines: [] }
       continue

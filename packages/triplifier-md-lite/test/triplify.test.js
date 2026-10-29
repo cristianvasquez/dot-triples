@@ -78,3 +78,27 @@ test('frontmatter goes on the file and is not text', () => {
   assert.deepEqual(objects(quads, 'urn:name:W.md', 'urn:token:status'), ['draft'])
   assert.deepEqual(objects(quads, 'urn:name:W.md', VALUE), ['Body.'])
 })
+
+test('a date value is xsd:date or xsd:dateTime; other values stay plain', () => {
+  const quads = triplifyToQuads([
+    '---',
+    'created: 2026-02-13',
+    '---',
+    '## S',
+    '- date :: 2026-02-13 22:47',
+    '- start :: 2026-02-13T22:47:05',
+    '- day :: 2026-02-13',
+    '- bad :: 2026-02-30 10:00',
+    '- note :: 2026-02-13 in the morning',
+  ].join('\n'), { file: 'N.md' })
+
+  const object = (subject, key) => quads.find(q => q.subject.value === subject && q.predicate.value === `urn:token:${key}`).object
+  const XSD = 'http://www.w3.org/2001/XMLSchema#'
+  const XSD_STRING = `${XSD}string`
+  assert.deepEqual([object('urn:name:N.md', 'created').value, object('urn:name:N.md', 'created').datatype.value], ['2026-02-13', `${XSD}date`])
+  assert.deepEqual([object('urn:name:N.md#s1', 'date').value, object('urn:name:N.md#s1', 'date').datatype.value], ['2026-02-13T22:47:00', `${XSD}dateTime`])
+  assert.deepEqual([object('urn:name:N.md#s1', 'start').value, object('urn:name:N.md#s1', 'start').datatype.value], ['2026-02-13T22:47:05', `${XSD}dateTime`])
+  assert.equal(object('urn:name:N.md#s1', 'day').datatype.value, `${XSD}date`)
+  assert.equal(object('urn:name:N.md#s1', 'bad').datatype.value, XSD_STRING)
+  assert.equal(object('urn:name:N.md#s1', 'note').datatype.value, XSD_STRING)
+})
