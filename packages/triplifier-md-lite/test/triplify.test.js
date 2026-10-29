@@ -102,3 +102,10 @@ test('a date value is xsd:date or xsd:dateTime; other values stay plain', () => 
   assert.equal(object('urn:name:N.md#s1', 'bad').datatype.value, XSD_STRING)
   assert.equal(object('urn:name:N.md#s1', 'note').datatype.value, XSD_STRING)
 })
+
+test('linkLabels: false keeps the IRI and drops the link text label', () => {
+  const quads = triplifyToQuads('## S\n- repository :: [repo](osg://repo/example)', { file: 'N.md', linkLabels: false })
+
+  assert.deepEqual(objects(quads, 'urn:name:N.md#s1', 'urn:token:repository'), ['osg://repo/example'])
+  assert.deepEqual(objects(quads, 'osg://repo/example', LABEL), [])
+})

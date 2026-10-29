@@ -66,13 +66,15 @@ export function triplify (content, options = {}) {
   }
 
   // A field value that is one Markdown link is the link target; the link
-  // text labels it.
+  // text labels it, unless options.linkLabels is false.
+  const linkLabels = options.linkLabels !== false
+
   function emitField (subject, key, value) {
     const link = value.match(MARKDOWN_LINK)
     if (link && isAbsoluteIri(link[2])) {
       const target = objectTerm(link[2])
       emit(subject, predicateNode(key), target)
-      if (!labeledUrls.has(target.value)) {
+      if (linkLabels && !labeledUrls.has(target.value)) {
         labeledUrls.add(target.value)
         emit(target, vocab.label, rdf.literal(link[1]))
       }
