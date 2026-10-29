@@ -1,6 +1,6 @@
 {
   "name": "triplifier-md-lite",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "type": "module",
   "description": "Convert Markdown sections to RDF records with their own text and fields, without selectors",
   "license": "MIT",
