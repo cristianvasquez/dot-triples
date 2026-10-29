@@ -1,0 +1,45 @@
+{
+  "name": "triplifier-md-lite",
+  "version": "0.3.0",
+  "type": "module",
+  "description": "Convert Markdown sections to RDF records with their own text and fields, without selectors",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cristianvasquez/dot-triples.git",
+    "directory": "packages/triplifier-md-lite"
+  },
+  "bugs": {
+    "url": "https://github.com/cristianvasquez/dot-triples/issues"
+  },
+  "keywords": [
+    "rdf",
+    "markdown",
+    "n-triples"
+  ],
+  "files": [
+    "src"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "bin": {
+    "triplify-lite": "./src/cli.js"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "dependencies": {
+    "@rdfjs/serializer-ntriples": "^2.0.1",
+    "canonical-md": "workspace:*",
+    "rdf-ext": "^2.6.0",
+    "triplifier-md": "workspace:*"
+  }
+}

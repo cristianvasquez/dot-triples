@@ -61,6 +61,21 @@ importers:
         specifier: ^2.6.0
         version: 2.6.0
 
+  packages/triplifier-md-lite:
+    dependencies:
+      '@rdfjs/serializer-ntriples':
+        specifier: ^2.0.1
+        version: 2.0.1
+      canonical-md:
+        specifier: workspace:*
+        version: link:../canonical-md
+      rdf-ext:
+        specifier: ^2.6.0
+        version: 2.6.0
+      triplifier-md:
+        specifier: workspace:*
+        version: link:../triplifier-md
+
 packages:
 
   '@bergos/jsonparse@1.4.2':

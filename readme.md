@@ -87,5 +87,6 @@ Result (selectors removed):
 
 - `canonical-md`: names, tokens, vocabulary, prefixes.
 - `triplifier-md`: Markdown reader and `triplify` CLI.
+- `triplifier-md-lite`: Markdown sections as records with their own text, and `triplify-lite` CLI.
 - `triplifier-canvas`: Canvas reader and `triplify-canvas` CLI.
 - `sparql-md`: query rewrite.

@@ -40,6 +40,8 @@
     ".": "./src/index.js",
     "./inline": "./src/inline.js",
     "./fences": "./src/fences.js",
+    "./frontmatter": "./src/frontmatter.js",
+    "./terms": "./src/terms.js",
     "./serialize": "./src/serialize.js",
     "./iri": "./src/iri.js"
   },

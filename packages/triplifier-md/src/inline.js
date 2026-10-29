@@ -62,6 +62,19 @@ const LIST_MARKER = /^\s*[-*+]\s+/
 // real multi-word key such as `lives in`.
 const FIELD_KEY_REJECT = /[[\]()/<>"]/
 
+// `key :: value` as { key, value }, or null when the line is not a field.
+export function parseField(line) {
+  // The list marker and the task checkbox are list syntax, not part of the
+  // key; `- [x] due :: 2026-01-01` is a field on the task.
+  const body = line.replace(TASK_CHECKBOX, '').replace(LIST_MARKER, '')
+  const match = body.match(FIELD_LINE)
+  if (!match) return null
+
+  const [, key, rawValue] = match
+  if (FIELD_KEY_REJECT.test(key)) return null
+  return { key: key.trim(), value: parseFieldValue(rawValue) }
+}
+
 export function createInlineExtractor(options = {}) {
   const {
     onQuad = () => {},
@@ -136,15 +149,9 @@ export function createInlineExtractor(options = {}) {
   // `key :: value` on the given subject. Returns false when the line is not a
   // field, so the caller can try the next reading.
   function field(line, subject) {
-    // The list marker and the task checkbox are list syntax, not part of the
-    // key; `- [x] due :: 2026-01-01` is a field on the task.
-    const body = line.replace(TASK_CHECKBOX, '').replace(LIST_MARKER, '')
-    const match = body.match(FIELD_LINE)
-    if (!match) return false
-
-    const [, key, rawValue] = match
-    if (FIELD_KEY_REJECT.test(key)) return false
-    emitObject(subject, resolvePredicate(key.trim()), parseFieldValue(rawValue))
+    const parsed = parseField(line)
+    if (!parsed) return false
+    emitObject(subject, resolvePredicate(parsed.key), parsed.value)
     return true
   }
 
