@@ -13,9 +13,10 @@ function compile(source) {
   try {
     const fixture = join(directory, 'Contract.hs')
     writeFileSync(fixture, `module Contract where\nimport DotTriples.Manifest\n${source.replace(/^ {4}/gm, '')}\n`)
+    // A cold GHC start on a CI runner can take over 30 s; later calls take 0.1 s.
     const result = spawnSync('ghc', [
       '-fno-code', '-fforce-recomp', '-v0', '-outputdir', directory, manifest, fixture,
-    ], { encoding: 'utf8', timeout: 30_000 })
+    ], { encoding: 'utf8', timeout: 120_000 })
     assert.ifError(result.error)
     return { status: result.status, output: result.stdout + result.stderr }
   } finally {
