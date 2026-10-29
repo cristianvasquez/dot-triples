@@ -1,0 +1,125 @@
+VERSION "1.2"
+PREFIX document: <osg://vocab/document#>
+PREFIX resource: <osg://vocab/resource#>
+PREFIX rdf:      <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs:     <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX dct:      <http://purl.org/dc/terms/>
+PREFIX schema:   <https://schema.org/>
+PREFIX oa:       <http://www.w3.org/ns/oa#>
+
+# Alice.md
+#
+#   1  ---
+#   2  tags: [person]
+#   3  ---
+#   4  # Alice
+#   5  knows :: [[Bob]]
+#   6  schema:jobTitle :: Engineer
+#   7
+#   8  ## Skills
+#   9  See [[Carol#Work]] and [friend].
+#
+# Rule: a triple stated by a span of text has a reifier. The reifier IRI is
+# urn:reference:<subject>:quote:<text>. Its source is the subject. Its
+# selectors say where (RFC 5147 line) and what (text quote).
+# Structural triples (type, about, source, selector) have no reifier.
+
+################################################################################
+# Data: unchanged from today
+################################################################################
+
+<urn:name:Alice.md> a document:File ;
+  schema:about <urn:name:Alice> , <urn:name:Alice%23Skills> ;
+  schema:keywords "person" .
+
+<urn:name:Alice> a resource:Resource ;
+  rdfs:label "Alice" ;
+  <urn:token:knows> <urn:name:Bob>
+    ~ <urn:reference:urn%3Aname%3AAlice:quote:knows%20%3A%3A%20%5B%5BBob%5D%5D> ;
+  schema:jobTitle "Engineer"
+    ~ <urn:reference:urn%3Aname%3AAlice:quote:schema%3AjobTitle%20%3A%3A%20Engineer> .
+
+<urn:name:Alice%23Skills> a resource:ResourceReference ;
+  rdfs:label "Skills" ;
+  resource:source <urn:name:Alice> ;
+  resource:selector
+    <urn:selector:fragment:https%3A%2F%2Fobsidian.md%2Fhelp%2Flinks:Skills> ,
+    <urn:selector:fragment:http%3A%2F%2Ftools.ietf.org%2Frfc%2Frfc5147:line%3D7%2C8> ,
+    <urn:selector:quote:%23%23%20Skills> ;
+  dct:references <urn:name:Carol%23Work>
+    ~ <urn:reference:urn%3Aname%3AAlice%2523Skills:quote:%5B%5BCarol%23Work%5D%5D> ;
+  dct:references <urn:token:friend>
+    ~ <urn:reference:urn%3Aname%3AAlice%2523Skills:quote:%5Bfriend%5D> .
+
+################################################################################
+# Annotation: one reifier per stating span, anchored in the subject
+################################################################################
+
+<urn:reference:urn%3Aname%3AAlice:quote:knows%20%3A%3A%20%5B%5BBob%5D%5D>
+  a resource:ResourceReference ;
+  resource:source <urn:name:Alice> ;
+  resource:selector
+    <urn:selector:fragment:http%3A%2F%2Ftools.ietf.org%2Frfc%2Frfc5147:line%3D4%2C5> ,
+    <urn:selector:quote:knows%20%3A%3A%20%5B%5BBob%5D%5D> .
+
+<urn:reference:urn%3Aname%3AAlice:quote:schema%3AjobTitle%20%3A%3A%20Engineer>
+  a resource:ResourceReference ;
+  resource:source <urn:name:Alice> ;
+  resource:selector
+    <urn:selector:fragment:http%3A%2F%2Ftools.ietf.org%2Frfc%2Frfc5147:line%3D5%2C6> ,
+    <urn:selector:quote:schema%3AjobTitle%20%3A%3A%20Engineer> .
+
+<urn:reference:urn%3Aname%3AAlice%2523Skills:quote:%5B%5BCarol%23Work%5D%5D>
+  a resource:ResourceReference ;
+  resource:source <urn:name:Alice%23Skills> ;
+  resource:selector
+    <urn:selector:fragment:http%3A%2F%2Ftools.ietf.org%2Frfc%2Frfc5147:line%3D8%2C9> ,
+    <urn:selector:quote:%5B%5BCarol%23Work%5D%5D> .
+
+<urn:reference:urn%3Aname%3AAlice%2523Skills:quote:%5Bfriend%5D>
+  a resource:ResourceReference ;
+  resource:source <urn:name:Alice%23Skills> ;
+  resource:selector
+    <urn:selector:fragment:http%3A%2F%2Ftools.ietf.org%2Frfc%2Frfc5147:line%3D8%2C9> ,
+    <urn:selector:quote:%5Bfriend%5D> .
+
+################################################################################
+# Selectors: same IRI scheme as today; shared when the value is the same
+################################################################################
+
+<urn:selector:fragment:https%3A%2F%2Fobsidian.md%2Fhelp%2Flinks:Skills> a oa:FragmentSelector ;
+  dct:conformsTo <https://obsidian.md/help/links> ; rdf:value "Skills" .
+<urn:selector:fragment:http%3A%2F%2Ftools.ietf.org%2Frfc%2Frfc5147:line%3D4%2C5> a oa:FragmentSelector ;
+  dct:conformsTo <http://tools.ietf.org/rfc/rfc5147> ; rdf:value "line=4,5" .
+<urn:selector:fragment:http%3A%2F%2Ftools.ietf.org%2Frfc%2Frfc5147:line%3D5%2C6> a oa:FragmentSelector ;
+  dct:conformsTo <http://tools.ietf.org/rfc/rfc5147> ; rdf:value "line=5,6" .
+<urn:selector:fragment:http%3A%2F%2Ftools.ietf.org%2Frfc%2Frfc5147:line%3D7%2C8> a oa:FragmentSelector ;
+  dct:conformsTo <http://tools.ietf.org/rfc/rfc5147> ; rdf:value "line=7,8" .
+<urn:selector:fragment:http%3A%2F%2Ftools.ietf.org%2Frfc%2Frfc5147:line%3D8%2C9> a oa:FragmentSelector ;
+  dct:conformsTo <http://tools.ietf.org/rfc/rfc5147> ; rdf:value "line=8,9" .
+
+<urn:selector:quote:%23%23%20Skills> a oa:TextQuoteSelector ; oa:exact "## Skills" .
+<urn:selector:quote:knows%20%3A%3A%20%5B%5BBob%5D%5D> a oa:TextQuoteSelector ; oa:exact "knows :: [[Bob]]" .
+<urn:selector:quote:schema%3AjobTitle%20%3A%3A%20Engineer> a oa:TextQuoteSelector ; oa:exact "schema:jobTitle :: Engineer" .
+<urn:selector:quote:%5B%5BCarol%23Work%5D%5D> a oa:TextQuoteSelector ; oa:exact "[[Carol#Work]]" .
+<urn:selector:quote:%5Bfriend%5D> a oa:TextQuoteSelector ; oa:exact "[friend]" .
+
+################################################################################
+# board.canvas: an edge is an anchor; its id is the reifier
+################################################################################
+
+<urn:name:Bob> <urn:token:lives%20in> <urn:name:BobHouse>
+  ~ <urn:name:board.canvas%23e7a1c03b9f2d4e10> .
+
+<urn:name:board.canvas%23e7a1c03b9f2d4e10> a resource:ResourceReference ;
+  resource:source <urn:name:board.canvas> ;
+  resource:selector
+    <urn:selector:fragment:https%3A%2F%2Fjsoncanvas.org%2Fspec%2F1.0%2F:e7a1c03b9f2d4e10> ,
+    <urn:selector:quote:lives%20in> .
+
+<urn:selector:fragment:https%3A%2F%2Fjsoncanvas.org%2Fspec%2F1.0%2F:e7a1c03b9f2d4e10> a oa:FragmentSelector ;
+  dct:conformsTo <https://jsoncanvas.org/spec/1.0/> ; rdf:value "e7a1c03b9f2d4e10" .
+<urn:selector:quote:lives%20in> a oa:TextQuoteSelector ; oa:exact "lives in" .
+
+# Group containment: derived from the rectangles, no span states it. No reifier.
+<urn:name:board.canvas%23050cd76ec3a65ab6> dct:hasPart <urn:name:Person> .
