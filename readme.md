@@ -5,9 +5,9 @@ repo-name: dot-triples
 layout: node.js
 tags: [repo/rdf]
 repo-group: rdf
+notes: Published, used by everyone
 ---
-
-# dot-triples
+# [dot-triples](osg://repo/github.com/cristianvasquez/dot-triples)
 
 dot-triples reads Markdown notes and JSON Canvas boards and writes RDF. The output follows one document model, so notes and canvases that refer to the same thing give the same IRI. You can read files one at a time, in any order, and merge the results into one graph.
 

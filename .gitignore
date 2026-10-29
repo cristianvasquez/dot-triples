@@ -6,3 +6,4 @@ intent
 !.github/workflows/
 .github/workflows/*
 !.github/workflows/*.yml
+.kata.local.toml
