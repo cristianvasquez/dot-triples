@@ -17,6 +17,11 @@
     "@release-it/bumper": "8.0.0",
     "release-it": "^21.0.2"
   },
+  "pnpm": {
+    "overrides": {
+      "undici@7": "^7.30.1"
+    }
+  },
   "release-it": {
     "plugins": {
       "@release-it/bumper": {
